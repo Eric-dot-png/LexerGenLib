@@ -73,10 +73,12 @@ private:
     /// @param left the left fragment 
     /// @param right the right fragment
     /// @return the concatination of left->right
-    static Fragment ApplyCAT(const Fragment& left, const Fragment& right,
+    static Fragment ApplyCat(const Fragment& left, const Fragment& right,
         std::vector<NFA::State>& states);
 
-    static void PatchHoles(size_t patchIndex, 
-        const std::vector<Fragment::Hole>& holes, 
-        std::vector<NFA::State>& states );
+    static Fragment ApplyUnion(const Fragment& left, const Fragment& right,
+        std::vector<NFA::State>& states);
+    
+    static void PatchHoles(const std::vector<Fragment::Hole>& holes,
+        size_t patchIndex, std::vector<NFA::State>& states );
 };

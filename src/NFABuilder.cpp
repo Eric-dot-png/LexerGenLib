@@ -50,15 +50,46 @@ auto NFABuilder::MakeLiteral(char a, std::vector<NFA::State> &nfaStates)
     };
 }
 
-auto NFABuilder::ApplyCAT(const Fragment &left, const Fragment &right,
+auto NFABuilder::ApplyCat(const Fragment &left, const Fragment &right,
     std::vector<NFA::State>& states) -> NFABuilder::Fragment
 {
-    PatchHoles(right.startIndex, left.holes, states);    
+    PatchHoles(left.holes, right.startIndex, states);    
     return Fragment{left.startIndex, right.holes };
 }
 
-void NFABuilder::PatchHoles(size_t patchState, 
-    const std::vector<Fragment::Hole> &holes, std::vector<NFA::State> &states)
+auto NFABuilder::ApplyUnion(const Fragment &left, const Fragment &right,
+    std::vector<NFA::State>& states) -> NFABuilder::Fragment
+{
+    /// add a new state and perform the union on the fragments
+    ///
+    size_t newStateIndex = NewState(states);
+    states[newStateIndex].transitions = {
+        NFA::Transition{
+            .symbol = EPSILON,
+            .to = left.startIndex
+        },
+        NFA::Transition{
+            .symbol = EPSILON,
+            .to = right.startIndex
+        }
+    };
+
+    Fragment ret{
+        .startIndex = newStateIndex,
+        .holes = {}
+    };
+
+    /// insert the holes of both fragments into the new fragment & return
+    ///
+    ret.holes.reserve(left.holes.size() + right.holes.size());
+    ret.holes.insert(ret.holes.end(), left.holes.begin(), left.holes.end());
+    ret.holes.insert(ret.holes.end(), left.holes.begin(), left.holes.end());
+    
+    return ret;
+}
+
+void NFABuilder::PatchHoles(const std::vector<Fragment::Hole> &holes, 
+    size_t patchState, std::vector<NFA::State> &states)
 {
     for (const auto& hole : holes)
     {
