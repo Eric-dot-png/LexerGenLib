@@ -72,13 +72,37 @@ private:
     /// @brief method to apply a concatination operator to two fragments
     /// @param left the left fragment 
     /// @param right the right fragment
+    /// @param nfaStates
     /// @return the concatination of left->right
     static Fragment ApplyCat(const Fragment& left, const Fragment& right,
-        std::vector<NFA::State>& states);
+        std::vector<NFA::State>& nfaStates);
 
+    /// @brief method to apply a union operator to two fragments
+    /// @param left the left fragment
+    /// @param right the right fragment
+    /// @param nfaStates the vector of nfa states
+    /// @return the constructed fragment
     static Fragment ApplyUnion(const Fragment& left, const Fragment& right,
-        std::vector<NFA::State>& states);
+        std::vector<NFA::State>& nfaStates);
     
+    /// @brief method to apply a kleene star operator to a fragment
+    /// @param fragment the fragment
+    /// @param nfaStates the vector of nfa states
+    /// @return the constructed fragment
+    static Fragment ApplyKStar(const Fragment& fragment, 
+        std::vector<NFA::State>& nfaStates);
+
+    /// @brief method to apply a kleene plus operator to a fragment
+    /// @param fragment the fragment
+    /// @param nfaStates the vector of nfa states
+    /// @return the constructed fragment
+    static Fragment ApplyKPlus(const Fragment& fragment,
+        std::vector<NFA::State>& nfaStates);
+
+    /// @brief method to patch a fragment's holes (in the state vector)
+    /// @param holes the vector of holes to patch
+    /// @param patchIndex the index of the state to patch the holes with
+    /// @param nfaStates the vector of nfa states
     static void PatchHoles(const std::vector<Fragment::Hole>& holes,
-        size_t patchIndex, std::vector<NFA::State>& states );
+        size_t patchIndex, std::vector<NFA::State>& nfaStates);
 };

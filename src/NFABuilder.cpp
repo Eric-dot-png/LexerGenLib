@@ -51,19 +51,19 @@ auto NFABuilder::MakeLiteral(char a, std::vector<NFA::State> &nfaStates)
 }
 
 auto NFABuilder::ApplyCat(const Fragment &left, const Fragment &right,
-    std::vector<NFA::State>& states) -> NFABuilder::Fragment
+    std::vector<NFA::State>& nfaStates) -> Fragment
 {
-    PatchHoles(left.holes, right.startIndex, states);    
+    PatchHoles(left.holes, right.startIndex, nfaStates);    
     return Fragment{left.startIndex, right.holes };
 }
 
 auto NFABuilder::ApplyUnion(const Fragment &left, const Fragment &right,
-    std::vector<NFA::State>& states) -> NFABuilder::Fragment
+    std::vector<NFA::State>& nfaStates) -> Fragment
 {
     /// add a new state and perform the union on the fragments
     ///
-    size_t newStateIndex = NewState(states);
-    states[newStateIndex].transitions = {
+    size_t newStateIndex = NewState(nfaStates);
+    nfaStates[newStateIndex].transitions = {
         NFA::Transition{
             .symbol = EPSILON,
             .to = left.startIndex
@@ -88,12 +88,49 @@ auto NFABuilder::ApplyUnion(const Fragment &left, const Fragment &right,
     return ret;
 }
 
+auto NFABuilder::ApplyKStar(const Fragment &fragment, 
+    std::vector<NFA::State> &nfaStates) -> Fragment
+{
+    size_t newStateIndex = NewState(nfaStates);
+
+    /// add new epsilon transition to new state to advance (without consuming)
+    /// a symbol
+    ///
+    nfaStates[newStateIndex].transitions = {
+        NFA::Transition{
+            .symbol = EPSILON,
+            .to = fragment.startIndex
+        }
+    };
+
+    /// patch the holes of the fragment
+    ///
+    PatchHoles(fragment.holes, newStateIndex, nfaStates);
+    
+    return Fragment{
+        .startIndex = newStateIndex,
+        .holes = {
+            Fragment::Hole{
+                .holeIndex = fragment.startIndex,
+                .tVal = EPSILON
+            }
+        } 
+    };
+}
+
+auto NFABuilder::ApplyKPlus(const Fragment &fragment, 
+    std::vector<NFA::State> &nfaStates) -> Fragment
+{
+    Fragment kstar = ApplyKStar(fragment, nfaStates);
+    return ApplyCat(fragment, kstar, nfaStates);
+}
+
 void NFABuilder::PatchHoles(const std::vector<Fragment::Hole> &holes, 
-    size_t patchState, std::vector<NFA::State> &states)
+    size_t patchState, std::vector<NFA::State> &nfaStates)
 {
     for (const auto& hole : holes)
     {
-        states[hole.holeIndex].transitions.push_back(
+        nfaStates[hole.holeIndex].transitions.push_back(
             NFA::Transition{
                 .symbol = hole.tVal, 
                 .to = patchState
