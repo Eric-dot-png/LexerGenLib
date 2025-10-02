@@ -17,10 +17,9 @@ int main()
             .actionCode = ""
         };
 
-        {
-            PreProcessor::PreProcess(pattern);
-            NFA n = NFABuilder::Build({pattern});
-        }
+        PreProcessor::PreProcess(pattern);
+        NFA n = NFABuilder::Build({pattern});
+        
     }
     catch(std::exception& e)
     {

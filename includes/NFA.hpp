@@ -6,7 +6,6 @@
 #include <vector>
 #include <cstddef>
 #include <unordered_set>
-#include <iostream>
 
 /// @brief Represents a Non-deterministic Finite Automaton (NFA)
 struct NFA
