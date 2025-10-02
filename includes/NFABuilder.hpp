@@ -1,12 +1,14 @@
 /// @file NFABuilder.hpp
 /// @brief NFA builder class
 
+#include "NFA.hpp"
+#include "PreProcessor.hpp"
+
 #include <cstddef>
 #include <vector>
+#include <stack>
 
-#include "NFA.hpp"
-
-struct Pattern;
+struct RuleCase;
 
 class NFABuilder
 {
@@ -33,7 +35,7 @@ public:
     ///       will be treated as strings
     /// @param preProcessedPatterns patterns that have been pre-processed
     /// @return the NFA constructed from the patterns
-    static NFA Build(const std::vector<Pattern>& preProcessedPatterns);
+    static NFA Build(const std::vector<RuleCase>& preProcessedPatterns);
 
 private:
     /// @brief struct representing a fragment. a fragment has an index, but
@@ -49,6 +51,13 @@ private:
         size_t startIndex; ///< index of the starting state in this fragment 
         std::vector<Hole> holes; ///< transitions to be patched
     };
+    
+    /// @brief method to patch a fragment's holes (in the state vector)
+    /// @param holes the vector of holes to patch
+    /// @param patchIndex the index of the state to patch the holes with
+    /// @param nfaStates the vector of nfa states
+    static void PatchHoles(const std::vector<Fragment::Hole>& holes,
+        size_t patchIndex, std::vector<NFA::State>& nfaStates);
 
     /// @brief method to create a new state with no rule tag and add it to
     ///        the state vector
@@ -99,10 +108,17 @@ private:
     static Fragment ApplyKPlus(const Fragment& fragment,
         std::vector<NFA::State>& nfaStates);
 
-    /// @brief method to patch a fragment's holes (in the state vector)
-    /// @param holes the vector of holes to patch
-    /// @param patchIndex the index of the state to patch the holes with
-    /// @param nfaStates the vector of nfa states
-    static void PatchHoles(const std::vector<Fragment::Hole>& holes,
-        size_t patchIndex, std::vector<NFA::State>& nfaStates);
+    static Fragment ApplyOperator(PreProcessor::Operator_t op, std::stack<Fragment>& fragStack,
+        std::vector<NFA::State>& nfaStates);
+
+    static void BuildFragment(const RuleCase& pattern, 
+        std::vector<NFA::State>& nfaStates, Fragment& fragment);
+
+    static size_t ConcludeCase(size_t ruleNo, Fragment& ruleFragment, 
+        std::vector<NFA::State>& nfaStates, 
+        std::unordered_set<size_t>& nfaAccepting);
+
+    static void ShuntingYard(const RuleCase& pattern, Fragment& fragment,  std::vector<NFA::State>& nfaStates);
+
+
 };

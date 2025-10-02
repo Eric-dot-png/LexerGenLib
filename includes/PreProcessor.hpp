@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <vector>
 
-struct Pattern;
+struct RuleCase;
 
 /// @brief static class to process regular expressions into NFAs
 class PreProcessor
@@ -30,11 +30,30 @@ public:
 
     /// @brief method to preprocess a pattern
     /// @param pattern the pattern to modify
-    static void PreProcess(Pattern& pattern);
+    static void PreProcess(RuleCase& pattern);
 
     /// @brief method to preprocess a vector of patterns
     /// @param patterns the patterns to pre-process
-    static void PreProcess(std::vector<Pattern>& patterns);
+    static void PreProcess(std::vector<RuleCase>& patterns);
+
+    /// @brief enum class representing the publicly available operators, where
+    ///        their values represent their operator precidence (other than LPAREN RPAREN)
+    enum class Operator_t : uint32_t
+    {
+        UNION = 0,
+        CONCAT = 1,
+        KSTAR = 2,
+        KPLUS = 3, 
+        OPTIONAL = 4,
+        LPAREN = 5,
+        RPAREN = 6
+    };
+
+    static bool IsOperator(char c);
+    static Operator_t OperatorOf(char c);
+    static uint32_t PriorityOf(Operator_t op);
+    static bool isBinary(Operator_t op);
+
 private:
     /// -----------------------------------------------------------------------
     /// Pre-Processing functions
@@ -42,15 +61,15 @@ private:
 
     /// @brief function to process a pattern's range operators
     /// @param pattern the pattern to modify
-    static void UnifyRanges(Pattern& pattern);
+    static void UnifyRanges(std::string& pattern);
 
     /// @brief function to insert concatination operators 
     /// @param pattern the pattern to modify
-    static void InsertConcats(Pattern& pattern);
+    static void InsertConcats(std::string& pattern);
 
     /// @brief method to convert a regex pattern to RPN
     /// @param pattern the pattern to change
-    static void makeRPN(Pattern& pattern);
+    static void makeRPN(std::string& pattern);
 
     /// -----------------------------------------------------------------------
     /// Pre-Processing Utility Functions / Enums
@@ -100,13 +119,17 @@ private:
 
     /// @brief encode a pattern's operators to their encoded values
     /// @param pattern the pattern to encode
-    static void Encode(Pattern& pattern);
+    static void Encode(std::string& pattern);
 
     /// @brief enum class to represent different "classes" of characeters
-    enum class CharType : uint32_t
+    enum class SymbolClass : uint32_t
     {
-        LITERAL, BINARY_OP, UNARY_OP, LPAREN,
-        RPAREN, RANGE_OP,
+        LITERAL, 
+        BINARY_OP, 
+        UNARY_OP, 
+        LPAREN,
+        RPAREN, 
+        RANGE_OP
     };
     
     /// @brief method to return the type of a character in a regex
@@ -115,12 +138,12 @@ private:
     /// @param c the character to check
     /// @return the type of the character
     template <typename Operator_t>
-    static CharType GetType(char c);
+    static SymbolClass GetType(char c);
 
     /// -----------------------------------------------------------------------
     /// Pre-Processing functions
     /// -----------------------------------------------------------------------
 
-    static void PrintRegex(std::ostream& os, const Pattern& pattern);
-    static std::string RegexStr(const Pattern& pattern);
+    static void PrintRegex(std::ostream& os, const std::string& pattern);
+    static std::string RegexStr(const std::string& pattern);
 };

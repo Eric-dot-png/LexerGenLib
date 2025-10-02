@@ -2,18 +2,35 @@
 /// @brief NFABuilder definitions
 
 #include "NFABuilder.hpp"
+
 #include "NFA.hpp"
+#include "RuleCase.hpp"
+
 #include "LexerUtil/Constants.hpp"
+#include "LexerUtil/Macros.hpp"
+#include "LexerUtil/Misc.hpp"
 
-NFA NFABuilder::Build(const std::vector<Pattern> & preProcessedPatterns)
+NFA NFABuilder::Build(const std::vector<RuleCase> & ruleCases)
 {
-    (void)preProcessedPatterns;
-
-    NFA ret{ 
+    NFA ret { 
         .start = INVALID_STATE_INDEX,
         .accept = {},
         .states = {}
     };
+
+    std::vector<Fragment> fragments;
+    fragments.reserve(ruleCases.size());
+
+    size_t ruleNo = 0;
+    size_t startIndex = ret.start = NewState(ret.states);
+
+    for (const RuleCase& ruleCase : ruleCases)
+    {
+        Fragment frag{ };
+        BuildFragment(ruleCase, ret.states, frag);
+        size_t caseIndex = ConcludeCase(ruleNo++, frag, ret.states, ret.accept);
+        ret.states[startIndex].transitions.emplace_back(EPSILON, caseIndex);
+    }
 
     return ret;
 }
@@ -26,12 +43,17 @@ size_t NFABuilder::NewState(std::vector<NFA::State> &nfaStates)
 size_t NFABuilder::NewState(size_t ruleNo, std::vector<NFA::State> &nfaStates)
 {
     size_t stateIndex = nfaStates.size();
-    nfaStates.push_back(NFA::State{
-        .index = stateIndex,
-        .ruleTag = ruleNo,
-        .transitions = {}
-    });
+    nfaStates.emplace_back(stateIndex, ruleNo, std::vector<NFA::Transition>{});
     return stateIndex;
+}
+
+void NFABuilder::PatchHoles(const std::vector<Fragment::Hole> &holes, 
+    size_t patchState, std::vector<NFA::State> &nfaStates)
+{
+    for (const auto& hole : holes)
+    {
+        nfaStates[hole.holeIndex].transitions.emplace_back(hole.tVal, patchState);
+    }
 }
 
 auto NFABuilder::MakeLiteral(char a, std::vector<NFA::State> &nfaStates)
@@ -125,16 +147,160 @@ auto NFABuilder::ApplyKPlus(const Fragment &fragment,
     return ApplyCat(fragment, kstar, nfaStates);
 }
 
-void NFABuilder::PatchHoles(const std::vector<Fragment::Hole> &holes, 
-    size_t patchState, std::vector<NFA::State> &nfaStates)
+auto NFABuilder::ApplyOperator(PreProcessor::Operator_t op, std::stack<Fragment> &fragStack,
+    std::vector<NFA::State>& nfaStates) -> Fragment
 {
-    for (const auto& hole : holes)
+    using enum PreProcessor::Operator_t;
+    switch ( op )
     {
-        nfaStates[hole.holeIndex].transitions.push_back(
-            NFA::Transition{
-                .symbol = hole.tVal, 
-                .to = patchState
-            }
-        );
+    case UNION:
+    {
+        Fragment right = pop(fragStack);
+        Fragment left = pop(fragStack);
+        return ApplyUnion(left, right, nfaStates);
     }
+    case CONCAT:
+    {
+        Fragment right = pop(fragStack);
+        Fragment left = pop(fragStack);
+        return ApplyCat(left,right,nfaStates);
+    }
+    case KSTAR:
+    {
+        Fragment a = pop(fragStack);
+        return ApplyKStar(a, nfaStates);
+    }
+    case KPLUS:
+    {
+        Fragment a = pop(fragStack);
+        return ApplyKPlus(a, nfaStates);
+    }
+    default:
+    {
+        ENSURES_THROW(false, "Unhandled case in NFABuilder::ApplyOperator()")
+        break;
+    }
+    }
+}
+
+void NFABuilder::BuildFragment(const RuleCase &pattern,  
+    std::vector<NFA::State>& nfaStates, Fragment &fragment)
+{
+    /// use shunting yard if the pattern is a regex
+    /// 
+    if (pattern.patternType == RuleCase::Pattern_t::REGEX) 
+    {
+        ShuntingYard(pattern, fragment, nfaStates);
+        return;
+    }
+
+    /// skip processing none pattern and eof pattern
+    ///
+    else if (pattern.patternType == RuleCase::Pattern_t::NONE || 
+        pattern.patternType == RuleCase::Pattern_t::END_OF_FILE)
+    {
+        return;
+    }
+
+    /// use standard literal interpretation if the pattern is a string
+    ///
+    std::string_view literalView = pattern.patternData;
+    fragment = MakeLiteral(literalView[0], nfaStates);
+    for (size_t i = 1; i <literalView.size();++i)
+    {
+        Fragment right = MakeLiteral(literalView[i], nfaStates);
+        fragment = ApplyCat(fragment,right,nfaStates);
+    }
+}
+
+size_t NFABuilder::ConcludeCase(size_t ruleNo, Fragment &ruleFragment, std::vector<NFA::State> &nfaStates, 
+    std::unordered_set<size_t> &nfaAccepting)
+{
+    size_t acceptState = NewState(ruleNo, nfaStates);
+    PatchHoles(ruleFragment.holes, acceptState, nfaStates);
+    nfaAccepting.insert(acceptState);
+    return ruleFragment.startIndex;
+}
+
+void NFABuilder::ShuntingYard(const RuleCase &ruleCase, Fragment &fragment,
+    std::vector<NFA::State>& nfaStates)
+{
+    bool expectOperand = true; /// true if we expect an operand next, false if we expect an operator next
+    std::stack<PreProcessor::Operator_t> opStack; /// stack to hold operators
+    std::stack<Fragment> fragStack; /// stack to hold fragments
+    std::string_view pattern = ruleCase.patternData;
+    
+    /// iterate over the pattern, and convert to RPN using the shunting-yard algorithm
+    ///
+    for (char c : pattern) 
+    {
+        if (!PreProcessor::IsOperator(c))
+        {
+            EXPECTS_THROW(expectOperand, std::format("Expected literal, got '{}'", c));
+            fragStack.push(MakeLiteral(c, nfaStates));
+            expectOperand = false;
+        }
+        else
+        {
+            PreProcessor::Operator_t op = PreProcessor::OperatorOf(c);
+            switch(op)
+            {
+            case PreProcessor::Operator_t::LPAREN: 
+            {
+                opStack.push(PreProcessor::Operator_t::LPAREN);
+                expectOperand = true;
+                break;
+            }
+            case PreProcessor::Operator_t::RPAREN:
+            {
+                EXPECTS_THROW(!expectOperand, "TODO: Unkerr?");
+
+                /// pop off the stack until we find a left paren
+                /// if we run out of stack before finding a left paren, then we have mismatch
+                ///
+                while(!opStack.empty() && opStack.top() != PreProcessor::Operator_t::LPAREN) 
+                {
+                    PreProcessor::Operator_t op = pop(opStack);
+                    fragStack.push(ApplyOperator(op, fragStack, nfaStates));
+                }
+                ENSURES_THROW(!opStack.empty() && opStack.top() == PreProcessor::Operator_t::LPAREN, "TODO: UNKERR?");
+                
+                opStack.pop(); // remove the lparen
+                expectOperand = false; 
+                break;
+            }
+            default:
+            {
+                EXPECTS_THROW(!expectOperand, "Unexpected operator");
+
+                /// pop off the stack until we find a lower precedence operator or a left paren or empty
+                ///    
+                while (!opStack.empty() && opStack.top() != PreProcessor::Operator_t::LPAREN &&
+                        (PreProcessor::PriorityOf(opStack.top()) > PreProcessor::PriorityOf(op) || 
+                         (PreProcessor::PriorityOf(opStack.top()) == PreProcessor::PriorityOf(op) 
+                            && PreProcessor::isBinary(op)) ) )
+                {
+                    PreProcessor::Operator_t op2 = pop(opStack);
+                    fragStack.push(ApplyOperator(op2, fragStack, nfaStates));
+                }
+
+                opStack.push(op);
+                expectOperand = !PreProcessor::isBinary(op);
+            }
+            }
+        }
+    }
+
+    /// process the rest of the operator stack
+    ///
+    while (!opStack.empty())
+    {
+        PreProcessor::Operator_t op = pop(opStack);
+        ENSURES_THROW(op != PreProcessor::Operator_t::LPAREN && op != PreProcessor::Operator_t::RPAREN,  "TODO: UNKERR?"); 
+        
+        fragStack.push(ApplyOperator(op, fragStack, nfaStates));
+    }
+    ENSURES_THROW(fragStack.size() == 1, "TODO: UNKERR?");
+
+    fragment = std::move(fragStack.top());
 }

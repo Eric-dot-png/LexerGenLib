@@ -6,6 +6,7 @@
 #include <vector>
 #include <cstddef>
 #include <unordered_set>
+#include <iostream>
 
 /// @brief Represents a Non-deterministic Finite Automaton (NFA)
 struct NFA
@@ -25,7 +26,7 @@ struct NFA
         std::vector<Transition> transitions; ///< the transitions from this state
     };
 
-    const size_t start; ///< The index of the start state
-    const std::unordered_set<size_t> accept; ///< The indices of the accept states
-    const std::vector<State> states; ///< The states of the NFA
+    size_t start; ///< The index of the start state
+    std::unordered_set<size_t> accept; ///< The indices of the accept states
+    std::vector<State> states; ///< The states of the NFA
 };

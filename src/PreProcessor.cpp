@@ -11,75 +11,149 @@
 #include <iomanip>
 #include <string_view>
 
-#include "Pattern.hpp"
+#include "RuleCase.hpp"
 #include "LexerUtil/Macros.hpp"
 #include "LexerUtil/Constants.hpp"
 #include "LexerUtil/Misc.hpp"
 
-static void dbg(Pattern& patt)
+#warning dbg in PreProcessor.cpp
+static void dbg(RuleCase& ruleCase)
 {
     std::cout << std::hex << std::setfill('0');
-    for (char c : patt.pattern)
+    for (char c : ruleCase.patternData)
     {
         std::cout << "0x" << std::setw(2) << (int) c << ' ';
     }
     std::cout << std::endl;
 }
 
-void PreProcessor::PreProcess(Pattern &pattern)
+void PreProcessor::PreProcess(RuleCase &ruleCase)
 {
-    if (!pattern.isRegex) return; // the pattern is a literal, no processing needed
-    std::cout << RegexStr(pattern) << '\n';
-    
-    Encode(pattern);
-    std::cout << RegexStr(pattern) << '\n';
+    std::string& pattern = ruleCase.patternData;
 
-    dbg(pattern);
+    switch( ruleCase.patternType )
+    {
+    case RuleCase::Pattern_t::END_OF_FILE:
+    case RuleCase::Pattern_t::NONE:
+    {
+        pattern = "";
+        return;
+    }
+    case RuleCase::Pattern_t::STRING:
+    {
+        return;
+    }
+    case RuleCase::Pattern_t::REGEX:
+    {
+        break;
+    }
+    }
+
+    Encode(pattern);
 
     UnifyRanges(pattern);
-    std::cout << RegexStr(pattern) << '\n';
 
     InsertConcats(pattern);
-    std::cout << RegexStr(pattern) << '\n';
 }
 
-void PreProcessor::PreProcess(std::vector<Pattern> &patterns)
+void PreProcessor::PreProcess(std::vector<RuleCase> &patterns)
 {
-    for (Pattern& pattern : patterns)
+    for (RuleCase& pattern : patterns)
     {
         PreProcess(pattern);
     }
 }
 
+bool PreProcessor::IsOperator(char c)
+{
+    char decoded = Decode(c);
+    return (decoded != c);
+}
+
+auto PreProcessor::OperatorOf(char c) -> Operator_t
+{
+    ENSURES_THROW(IsOperator(c), std::format("Invalid operator '{}' requested", c));
+    
+    switch((OpEncoded) c)
+    {
+        case OpEncoded::UNION: return Operator_t::UNION;
+        case OpEncoded::CONCAT: return Operator_t::CONCAT;
+        case OpEncoded::KLEENE: return Operator_t::KSTAR;
+        case OpEncoded::PLUS: return Operator_t::KPLUS;
+        case OpEncoded::OPTIONAL: return Operator_t::OPTIONAL;
+        case OpEncoded::LPAREN: return Operator_t::LPAREN;
+        case OpEncoded::RPAREN: return Operator_t::RPAREN;
+        default: break;
+    }
+    
+    throw( std::logic_error("unreachable") );
+}
+
+uint32_t PreProcessor::PriorityOf(Operator_t op)
+{
+    switch( op )
+    {
+    case Operator_t::UNION: return 0;
+    case Operator_t::CONCAT: return 1;
+    
+    case Operator_t::KSTAR:
+    case Operator_t::KPLUS: 
+    case Operator_t::OPTIONAL: 
+    {
+        return 2;
+    }
+    case Operator_t::LPAREN: return 3;
+    case Operator_t::RPAREN: return 4;
+    default: return -1;
+    }
+}
+
+bool PreProcessor::isBinary(Operator_t op)
+{
+    switch( op )
+    {
+    case Operator_t::KSTAR:
+    case Operator_t::KPLUS:
+    case Operator_t::OPTIONAL:
+    {
+        return true;
+    }    
+    default: 
+    {
+        return false;
+    }
+    }
+}
+
 template <typename Operator_t>
-auto PreProcessor::GetType(char c) -> CharType
+auto PreProcessor::GetType(char c) -> SymbolClass
 {  
     switch(( (Operator_t) c))
     {
     case Operator_t::UNION:
     case Operator_t::CONCAT:
-        return CharType::BINARY_OP;
+        return SymbolClass::BINARY_OP;
 
     case Operator_t::KLEENE:
     case Operator_t::PLUS:
     case Operator_t::OPTIONAL:
-        return CharType::UNARY_OP;
+        return SymbolClass::UNARY_OP;
 
-    case Operator_t::LPAREN: return CharType::LPAREN;
-    case Operator_t::RPAREN: return CharType::RPAREN;
+    case Operator_t::LPAREN: return SymbolClass::LPAREN;
+    case Operator_t::RPAREN: return SymbolClass::RPAREN;
     
     case Operator_t::LBRACE:
     case Operator_t::RBRACE:
     case Operator_t::INVERT:
     case Operator_t::RANGE_MID:
-        return CharType::RANGE_OP;
+        return SymbolClass::RANGE_OP;
     
-    default: return CharType::LITERAL; // if not an operator, then it's a literal
+    default: return SymbolClass::LITERAL; // if not an operator, then it's a literal
     }
 }
 
-template PreProcessor::CharType PreProcessor::GetType<PreProcessor::OpDecoded>(char c);
-template PreProcessor::CharType PreProcessor::GetType<PreProcessor::OpEncoded>(char c);
+template PreProcessor::SymbolClass PreProcessor::GetType<PreProcessor::OpDecoded>(char c);
+template PreProcessor::SymbolClass PreProcessor::GetType<PreProcessor::OpEncoded>(char c);
 
 auto PreProcessor::EncodeOp(OpDecoded op) -> OpEncoded
 {
@@ -119,36 +193,35 @@ char PreProcessor::Decode(char c)
     }
 }
 
-void PreProcessor::Encode(Pattern &pattern)
+void PreProcessor::Encode(std::string &pattern)
 {
     std::string ret;
-    ret.reserve(pattern.pattern.size());
+    ret.reserve(pattern.size());
 
-    for (size_t i=0;i<pattern.pattern.size();++i) 
+    for (size_t i=0;i<pattern.size();++i) 
     {
-        if (pattern.pattern[i] == '\\') 
+        if (pattern[i] == '\\') 
         {
             i += 1; // advance to skip the next char (which is escaped)
-            ENSURES_THROW(i < pattern.pattern.size(), "Unmatched '\'."); // unmatched '\'
-            ret.push_back(pattern.pattern[i]); // add the escaped char as a literal
+            ENSURES_THROW(i < pattern.size(), "Unmatched '\'."); // unmatched '\'
+            ret.push_back(pattern[i]); // add the escaped char as a literal
         }
-        else if (GetType<OpDecoded>(pattern.pattern[i]) != CharType::LITERAL) 
+        else if (GetType<OpDecoded>(pattern[i]) != SymbolClass::LITERAL) 
         {
-            ret.push_back((char) EncodeOp((OpDecoded) pattern.pattern[i]));
+            ret.push_back((char) EncodeOp((OpDecoded) pattern[i]));
         }
         else 
         {
-            ret.push_back(pattern.pattern[i]);
+            ret.push_back(pattern[i]);
         }
     }
 
-    pattern.pattern = std::move(ret);   
+    pattern = std::move(ret);   
 }
 
-void PreProcessor::UnifyRanges(Pattern &pattern)
+void PreProcessor::UnifyRanges(std::string &pattern)
 {
     std::stringstream ss; // output string stream to set the pattern to
-    std::string_view regx = pattern.pattern; // view of the regex pattern
     size_t startI = 0; // starting index of the current range
     size_t endI = 0; // ending index of the current range
 
@@ -157,18 +230,18 @@ void PreProcessor::UnifyRanges(Pattern &pattern)
         bool invertedRange = false;
         /// find the first occurence of an encoded left range op in the string
         ///
-        startI = regx.find((char)OpEncoded::LBRACE, endI);
+        startI = pattern.find((char)OpEncoded::LBRACE, endI);
        
         /// include all the characters outside of the string in the output string
         ///
-        for (size_t i = endI; i < (startI == std::string::npos ? regx.size() : startI);++i) 
+        for (size_t i = endI; i < (startI == std::string::npos ? pattern.size() : startI);++i) 
         {
-            ss << regx[i];
+            ss << pattern[i];
         }
 
         /// handle right range operator found without left range op e.g. "123]"
         /// 
-        endI = regx.find((char)OpEncoded::RBRACE, (startI == std::string::npos ? endI : startI));
+        endI = pattern.find((char)OpEncoded::RBRACE, (startI == std::string::npos ? endI : startI));
         ENSURES_THROW( !(startI == std::string::npos && endI != std::string::npos), 
             std::format("Unmatched {} in regex \"{}\"", (char)OpDecoded::RBRACE, RegexStr(pattern)));
 
@@ -177,13 +250,11 @@ void PreProcessor::UnifyRanges(Pattern &pattern)
 
         /// determine if the range is inverted, and actually form the range
         ///
-        invertedRange = (regx[startI+1] == (char)OpEncoded::INVERT); 
+        invertedRange = (pattern[startI+1] == (char)OpEncoded::INVERT); 
         startI = (invertedRange ? startI+2 : startI+1);
-        std::string_view range = regx.substr(startI, endI - startI);    
-        std::cout << "found range: ";
-        PrintRegex(std::cout, {std::string(range), true});
-        std::cout << std::endl;
-        ENSURES_THROW(range.size() > 0, std::format("Empty {}{} in regex \"{}\"", (char)OpDecoded::LBRACE, (char)OpDecoded::RBRACE, RegexStr(pattern)));
+        std::string_view range = pattern.substr(startI, endI - startI);    
+        ENSURES_THROW(range.size() > 0, std::format("Empty {}{} in regex \"{}\"", 
+            (char)OpDecoded::LBRACE, (char)OpDecoded::RBRACE, RegexStr(pattern)));
         
         /// finally, actually calculate this specific range instance
         ///
@@ -218,30 +289,29 @@ void PreProcessor::UnifyRanges(Pattern &pattern)
         
         ++endI; // advance the end so we don't see the same rbrace
     }
-    pattern.pattern = std::move(ss.str());
+    pattern = std::move(ss.str());
 }
 
-void PreProcessor::InsertConcats(Pattern &pattern)
+void PreProcessor::InsertConcats(std::string &pattern)
 {
     std::stringstream ss;
-    std::string_view regx = pattern.pattern;
 
-    ss << regx[0];
-    for (size_t i = 1; i < regx.size();++i)
+    ss << pattern[0];
+    for (size_t i = 1; i < pattern.size();++i)
     {
-        CharType left = GetType<OpEncoded>(regx[i-1]);
-        CharType right = GetType<OpEncoded>(regx[i]);
-        if ( (left == CharType::LITERAL || left == CharType::UNARY_OP || left == CharType::RPAREN) &&
-             (right == CharType::LITERAL || right == CharType::LPAREN) )
+        SymbolClass left = GetType<OpEncoded>(pattern[i-1]);
+        SymbolClass right = GetType<OpEncoded>(pattern[i]);
+        if ( (left == SymbolClass::LITERAL || left == SymbolClass::UNARY_OP || left == SymbolClass::RPAREN) &&
+             (right == SymbolClass::LITERAL || right == SymbolClass::LPAREN) )
         {
             ss << (char)OpEncoded::CONCAT;
         }
-        ss << regx[i];
+        ss << pattern[i];
     }
-    pattern.pattern = std::move(ss.str());
+    pattern = std::move(ss.str());
 }
 
-void PreProcessor::makeRPN(Pattern &pattern)
+void PreProcessor::makeRPN(std::string &pattern)
 {
     /// define the operator precedence map
     ///
@@ -256,29 +326,29 @@ void PreProcessor::makeRPN(Pattern &pattern)
     bool expectOperand = true; /// true if we expect an operand next, false if we expect an operator next
     std::stack<OpEncoded> opStack; /// stack to hold operators
     std::string ret; /// the resulting RPN string (to be moved)
-    ret.reserve(pattern.pattern.size()); /// reserve space to avoid multiple allocations
+    ret.reserve(pattern.size()); /// reserve space to avoid multiple allocations
 
     /// iterate over the pattern, and convert to RPN using the shunting-yard algorithm
     ///
-    for (char c : pattern.pattern) 
+    for (char c : pattern) 
     {
-        CharType type = GetType<OpEncoded>(c);
+        SymbolClass type = GetType<OpEncoded>(c);
         switch(type)
         {
-        case CharType::LITERAL:
+        case SymbolClass::LITERAL:
 {
             EXPECTS_THROW(expectOperand, "TODO: UNKERR?");
             ret.push_back(c);
             expectOperand = false;
             break;
         }
-        case CharType::LPAREN:
+        case SymbolClass::LPAREN:
         {
             opStack.push(OpEncoded::LPAREN);
             expectOperand = true;
             break;
         }
-        case CharType::RPAREN:
+        case SymbolClass::RPAREN:
         {
             EXPECTS_THROW(!expectOperand, "TODO: UNKERR?");
             
@@ -295,8 +365,8 @@ void PreProcessor::makeRPN(Pattern &pattern)
             expectOperand = false; 
             break;
         }
-        case CharType::BINARY_OP:
-        case CharType::UNARY_OP:
+        case SymbolClass::BINARY_OP:
+        case SymbolClass::UNARY_OP:
         {
             EXPECTS_THROW(!expectOperand, "TODO: UNKERR?");
 
@@ -304,13 +374,13 @@ void PreProcessor::makeRPN(Pattern &pattern)
             ///
             while(!opStack.empty() && opStack.top() != OpEncoded::LPAREN &&
                   ((OP_PRIO.at(opStack.top()) > OP_PRIO.at((OpEncoded) c)) ||
-                  (OP_PRIO.at(opStack.top()) == OP_PRIO.at((OpEncoded) c) && type == CharType::BINARY_OP))) 
+                  (OP_PRIO.at(opStack.top()) == OP_PRIO.at((OpEncoded) c) && type == SymbolClass::BINARY_OP))) 
             {
                 ret.push_back((char)pop(opStack));
             }
 
             opStack.push((OpEncoded) c); // push the current operator onto the stack
-            expectOperand = (type == CharType::BINARY_OP); // binary operator requries next symbol to be oprnd
+            expectOperand = (type == SymbolClass::BINARY_OP); // binary operator requries next symbol to be oprnd
             break;
         }
         default: EXPECTS_THROW(false, "TODO: UNKERR?");
@@ -327,25 +397,18 @@ void PreProcessor::makeRPN(Pattern &pattern)
         opStack.pop();
     }
 
-    pattern.pattern = std::move(ret);
+    pattern = std::move(ret);
 }
 
-void PreProcessor::PrintRegex(std::ostream &os, const Pattern &pattern)
+void PreProcessor::PrintRegex(std::ostream &os, const std::string &pattern)
 {
-    if (!pattern.isRegex)
+    for (char c : pattern)
     {
-        os << pattern.pattern;
-    } 
-    else 
-    {
-        for (char c : pattern.pattern)
-        {
-            os << Decode(c);
-        }
+        os << Decode(c);
     }
 }
 
-std::string PreProcessor::RegexStr(const Pattern &pattern)
+std::string PreProcessor::RegexStr(const std::string &pattern)
 {
     std::stringstream ss;
     PrintRegex(ss, pattern);

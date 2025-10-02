@@ -1,6 +1,6 @@
 # file : makefile
 
-LIBNAME = libname # replace
+LIBNAME = lexerlib# replace
 TARGET := a.out
 STATIC_LIB := $(LIBNAME).a
 
@@ -15,8 +15,9 @@ OBJ_DIR := $(BUILD_DIR)/obj
 
 # Compiler / Compiler flags 
 CXX := g++
-CXXFLAGS := -Wall -Wextra -g -I$(INC_DIR) -MMD -MP -std=c++20
-ASAN := -fsanitize=address -g -fno-omit-frame-pointer
+OPTIMIZE = O0
+CXXFLAGS := -Wall -Wextra -g -I$(INC_DIR) -MMD -MP -std=c++20 -$(OPTIMIZE)
+ASAN := -fsanitize=address,leak -g -fno-omit-frame-pointer
 
 SRCS := $(wildcard $(SRC_DIR)/*.cpp)
 OBJS := $(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(SRCS))

@@ -1,19 +1,26 @@
 /// @file main.cpp
 
-#include <iostream>
-#include "Pattern.hpp"
+#include "RuleCase.hpp"
 #include "PreProcessor.hpp"
+#include "NFABuilder.hpp"
+
+#include <iostream>
 
 int main()
 {
     try
     {
-        Pattern pattern {
-            .pattern = "[0-9]*[a-zA-Z^]+",
-            .isRegex = true
+        RuleCase pattern {
+            .patternData = "[0-9]*[a-zA-Z\\^]+",
+            .patternType = RuleCase::Pattern_t::REGEX,
+            .matchAlias = "",
+            .actionCode = ""
         };
 
-        PreProcessor::PreProcess(pattern);
+        {
+            PreProcessor::PreProcess(pattern);
+            NFA n = NFABuilder::Build({pattern});
+        }
     }
     catch(std::exception& e)
     {
