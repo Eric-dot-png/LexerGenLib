@@ -17,14 +17,19 @@
 #include "LexerUtil/Misc.hpp"
 
 #warning dbg in PreProcessor.cpp
-static void dbg(RuleCase& ruleCase)
+static void dbg(std::string_view patternData)
 {
     std::cout << std::hex << std::setfill('0');
-    for (char c : ruleCase.patternData)
+    for (char c : patternData)
     {
         std::cout << "0x" << std::setw(2) << (int) c << ' ';
     }
     std::cout << std::endl;
+}
+
+static void dbg(RuleCase& ruleCase)
+{
+    dbg(ruleCase.patternData);
 }
 
 void PreProcessor::PreProcess(RuleCase &ruleCase)
@@ -50,10 +55,13 @@ void PreProcessor::PreProcess(RuleCase &ruleCase)
     }
 
     Encode(pattern);
+    //std::cout << "After Encode: " << RegexStr(pattern) << std::endl;
 
     UnifyRanges(pattern);
+    //std::cout << "After unify: " << RegexStr(pattern) << std::endl;
 
     InsertConcats(pattern);
+    //std::cout << "After insert: " << RegexStr(pattern) << std::endl;
 }
 
 void PreProcessor::PreProcess(std::vector<RuleCase> &patterns)
@@ -170,8 +178,9 @@ auto PreProcessor::EncodeOp(OpDecoded op) -> OpEncoded
     case OpDecoded::RBRACE:    return OpEncoded::RBRACE;
     case OpDecoded::INVERT:    return OpEncoded::INVERT;
     case OpDecoded::RANGE_MID: return OpEncoded::RANGE_MID;
-    default: EXPECTS_THROW(false, "TODO: UNKERR?");
+    default: THROW_ERR("TODO: UNKERR?");
     }
+    UNREACHABLE();
 }
 
 char PreProcessor::Decode(char c)
@@ -227,11 +236,10 @@ void PreProcessor::UnifyRanges(std::string &pattern)
 
     while(1)
     {
-        bool invertedRange = false;
         /// find the first occurence of an encoded left range op in the string
         ///
         startI = pattern.find((char)OpEncoded::LBRACE, endI);
-       
+
         /// include all the characters outside of the string in the output string
         ///
         for (size_t i = endI; i < (startI == std::string::npos ? pattern.size() : startI);++i) 
@@ -246,13 +254,14 @@ void PreProcessor::UnifyRanges(std::string &pattern)
             std::format("Unmatched {} in regex \"{}\"", (char)OpDecoded::RBRACE, RegexStr(pattern)));
 
         if (startI == std::string::npos) break; /// there is no more range 
-        ENSURES_THROW(endI != std::string::npos, std::format("Unmatched {}, in regex \"{}\"", (char)OpDecoded::LBRACE, RegexStr(pattern)));
+        ENSURES_THROW(endI != std::string::npos, 
+            std::format("Unmatched {}, in regex \"{}\"", (char)OpDecoded::LBRACE, RegexStr(pattern)));
 
         /// determine if the range is inverted, and actually form the range
         ///
-        invertedRange = (pattern[startI+1] == (char)OpEncoded::INVERT); 
+        bool invertedRange = (pattern[startI+1] == (char)OpEncoded::INVERT); 
         startI = (invertedRange ? startI+2 : startI+1);
-        std::string_view range = pattern.substr(startI, endI - startI);    
+        std::string_view range = std::string_view{pattern}.substr(startI, endI - startI);    
         ENSURES_THROW(range.size() > 0, std::format("Empty {}{} in regex \"{}\"", 
             (char)OpDecoded::LBRACE, (char)OpDecoded::RBRACE, RegexStr(pattern)));
         
@@ -400,7 +409,7 @@ void PreProcessor::makeRPN(std::string &pattern)
     pattern = std::move(ret);
 }
 
-void PreProcessor::PrintRegex(std::ostream &os, const std::string &pattern)
+void PreProcessor::PrintRegex(std::ostream &os, std::string_view pattern)
 {
     for (char c : pattern)
     {
@@ -408,7 +417,7 @@ void PreProcessor::PrintRegex(std::ostream &os, const std::string &pattern)
     }
 }
 
-std::string PreProcessor::RegexStr(const std::string &pattern)
+std::string PreProcessor::RegexStr(std::string_view pattern)
 {
     std::stringstream ss;
     PrintRegex(ss, pattern);
