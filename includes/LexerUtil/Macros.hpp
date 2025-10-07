@@ -5,20 +5,43 @@
 #pragma once
 
 #include <stdexcept>
-#include <stdexcept>
 #include <format>
+#include <string_view>
 
-// Stringification helpers
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
+/// @brief Function to throw a structured, formatted error
+/// @param file the file the error was thrown in
+/// @param line the line number of the file where the error was thrown
+/// @param message the message associated with the error
+inline void ThrowFormattedError(const char * const file,
+    size_t line, std::string_view message)
+{
+    throw std::invalid_argument(std::format("Error: {}:{} - {}", file, line, message));
+}
 
-// Expect/Ensure macros
-#define EXPECTS_THROW(xCond, xMsg) \
-    if (!(xCond)) { \
-        throw std::invalid_argument(std::format("Error: {}:{} - {}", __FILE__, TOSTRING(__LINE__), xMsg)); \
+/// @brief Inline function to throw an error if a condition is not true
+/// @param cond the condition to test
+/// @param file the string of the file number called in
+/// @param line the line number in the file called in 
+/// @param message the message of the error 
+inline void ThrowIFNTrue(bool cond, const char * const file, 
+    size_t line, std::string_view message)
+{
+    if (!cond) 
+    {
+        ThrowFormattedError(file, line, message);
     }
+}
 
-#define ENSURES_THROW(xCond, xMsg) \
-    if (!(xCond)) { \
-        throw std::invalid_argument(std::format("Error: {}:{} - {}", __FILE__, TOSTRING(__LINE__), xMsg)); \
-    }
+/// @brief macro to call ThrowFormattedError with file and line params already
+///        populated. This is used to ALWAYS throw an error thats formatted.
+#define THROW_ERR(xMsg) ThrowFormattedError(__FILE__, __LINE__, xMsg);
+
+/// @brief macro to call the ThrowIFNTrue method with file and line number already 
+///        populated. This is used to check conditions at the start of a code block
+#define EXPECTS_THROW(xCond, xMsg) ThrowIFNTrue(xCond, __FILE__, __LINE__, xMsg);
+
+/// @brief macro to call the ThrowIFNTrue method with file and line number already 
+///        populated. This is used to check conditions at the end of a code block
+#define ENSURES_THROW(xCond, xMsg) ThrowIFNTrue(xCond, __FILE__, __LINE__, xMsg);
+
+#define UNREACHABLE() __builtin_unreachable()

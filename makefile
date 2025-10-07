@@ -12,6 +12,7 @@ BUILD_DIR := build
 BIN_DIR := $(BUILD_DIR)/bin
 LIB_DIR := $(BUILD_DIR)/$(LIBNAME)
 OBJ_DIR := $(BUILD_DIR)/obj
+OUT_DIR := output
 
 # Compiler / Compiler flags 
 CXX := g++
@@ -31,13 +32,22 @@ exe: $(TARGET)
 lib: $(STATIC_LIB)
 
 # run the executable
-run:
+run: $(OUT_DIR)
 	$(BIN_DIR)/a.out
-r:
+r: $(OUT_DIR)
 	$(BIN_DIR)/a.out
 
+log: $(OUT_DIR)
+	$(BIN_DIR)/a.out > $(OUT_DIR)/out.log
+
+l: $(OUT_DIR)
+	$(BIN_DIR)/a.out > $(OUT_DIR)/out.log
+
+graph: $(OUT_DIR)
+	dot -Tsvg -o $(OUT_DIR)/fsm.svg $(OUT_DIR)/fsm.dot
+
 # clean the directory 
-clean:
+clean: 
 	rm -rf $(BUILD_DIR)
 
 c:
@@ -66,5 +76,8 @@ $(LIB_DIR):
 	mkdir -p $(LIB_DIR)
 	mkdir -p $(LIB_DIR)/include
 	mkdir -p $(LIB_DIR)/lib
+
+$(OUT_DIR):
+	mkdir -p $(OUT_DIR)
 
 -include $(OBJS:.o=.d)

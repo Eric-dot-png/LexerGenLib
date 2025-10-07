@@ -55,6 +55,7 @@ public:
     static bool isBinary(Operator_t op);
 
 private:
+
     /// -----------------------------------------------------------------------
     /// Pre-Processing functions
     /// -----------------------------------------------------------------------
@@ -144,6 +145,6 @@ private:
     /// Pre-Processing functions
     /// -----------------------------------------------------------------------
 
-    static void PrintRegex(std::ostream& os, const std::string& pattern);
-    static std::string RegexStr(const std::string& pattern);
+    static void PrintRegex(std::ostream& os, std::string_view pattern);
+    static std::string RegexStr(std::string_view pattern);
 };

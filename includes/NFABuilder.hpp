@@ -51,6 +51,15 @@ private:
         size_t startIndex; ///< index of the starting state in this fragment 
         std::vector<Hole> holes; ///< transitions to be patched
     };
+
+    
+    /// -----------------------------------------------------------------------
+    ///  Debug functions (to be removed)
+    /// -----------------------------------------------------------------------
+    #warning debug functions are enabled
+
+    static void Debug(const Fragment& frag);
+
     
     /// @brief method to patch a fragment's holes (in the state vector)
     /// @param holes the vector of holes to patch
@@ -106,6 +115,9 @@ private:
     /// @param nfaStates the vector of nfa states
     /// @return the constructed fragment
     static Fragment ApplyKPlus(const Fragment& fragment,
+        std::vector<NFA::State>& nfaStates);
+
+    static Fragment ApplyKOpt(const Fragment& fragment,
         std::vector<NFA::State>& nfaStates);
 
     static Fragment ApplyOperator(PreProcessor::Operator_t op, std::stack<Fragment>& fragStack,

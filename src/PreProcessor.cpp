@@ -55,13 +55,13 @@ void PreProcessor::PreProcess(RuleCase &ruleCase)
     }
 
     Encode(pattern);
-    //std::cout << "After Encode: " << RegexStr(pattern) << std::endl;
+    std::cout << "After Encode: " << RegexStr(pattern) << std::endl;
 
     UnifyRanges(pattern);
-    //std::cout << "After unify: " << RegexStr(pattern) << std::endl;
+    std::cout << "After unify: " << RegexStr(pattern) << std::endl;
 
     InsertConcats(pattern);
-    //std::cout << "After insert: " << RegexStr(pattern) << std::endl;
+    std::cout << "After insert: " << RegexStr(pattern) << std::endl;
 }
 
 void PreProcessor::PreProcess(std::vector<RuleCase> &patterns)
