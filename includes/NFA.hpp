@@ -28,4 +28,7 @@ struct NFA
     size_t start; ///< The index of the start state
     std::unordered_set<size_t> accept; ///< The indices of the accept states
     std::vector<State> states; ///< The states of the NFA
+
+    const std::unordered_set<size_t> & Accepting() const { return accept; }
+    const std::vector<State>& States() const { return states; }
 };

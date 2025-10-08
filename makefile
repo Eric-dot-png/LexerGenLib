@@ -44,7 +44,8 @@ l: $(OUT_DIR)
 	$(BIN_DIR)/a.out > $(OUT_DIR)/out.log
 
 graph: $(OUT_DIR)
-	dot -Tsvg -o $(OUT_DIR)/fsm.svg $(OUT_DIR)/fsm.dot
+	dot -Tsvg -o $(OUT_DIR)/nfa.svg $(OUT_DIR)/nfa.dot
+	dot -Tsvg -o $(OUT_DIR)/dfa.svg $(OUT_DIR)/dfa.dot
 
 # clean the directory 
 clean: 

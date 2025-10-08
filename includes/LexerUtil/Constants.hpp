@@ -12,12 +12,11 @@
 const std::unordered_set<char> ALPHABET = []()
 {
     std::unordered_set<char> ret{ };
-    for (int c = 32; c < 128; ++c)
+    for (int c = 32; c < 127; ++c)
     {
         //std::cout << (char) c << std::endl;
         ret.insert((char)c);
     }
-    ret.insert('\0');
     ret.insert('\t');
     ret.insert('\n');
     
