@@ -17,21 +17,21 @@ public:
     struct State
     {
         size_t index;
-        size_t rule_tag;
+        size_t ruleTag;
         std::unordered_map<char, size_t> transitions;
     };
 
     DFA(const NFA& nfa);
 
     size_t Start() const;
+    size_t Dead() const;
     const std::vector<State>& States() const;
-    const std::unordered_set<size_t>& Accepting() const;
 
 private:
     DFA();
     static void Powerset(const NFA& nfa, DFA& dfa);
 
-    size_t start_; ///< starting state
+    size_t start_; ///< starting state index
+    size_t deadState_; ///< dead state index
     std::vector<State> states_; ///< state vector
-    std::unordered_set<size_t> accepting_; ///< set of accepting state indices
 };

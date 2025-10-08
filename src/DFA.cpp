@@ -32,23 +32,22 @@ DFA::DFA(const NFA &nfa)
 }
 
 DFA::DFA()
-    : start_(INVALID_STATE_INDEX), states_({}), accepting_({})
-{
-}
+    : start_(INVALID_STATE_INDEX), deadState_(INVALID_STATE_INDEX), states_({})
+{ }
 
 size_t DFA::Start() const
 {
     return start_;
 }
 
+size_t DFA::Dead() const
+{
+    return deadState_;
+}
+
 const std::vector<DFA::State> &DFA::States() const
 {
     return states_;
-}
-
-const std::unordered_set<size_t> &DFA::Accepting() const
-{
-    return accepting_;
 }
 
 static std::vector<StateSet> InitEpClosureCache(const NFA &nfa)
@@ -106,51 +105,67 @@ static void Move(const NFA &nfa, char symbol, StateSet &set)
     set = std::move(result);
 }
 
-static void NewState(const NFA& nfa, const StateSet& set, std::vector<DFA::State>& states,
-    std::unordered_map<StateSet, size_t, StateSetHash>& mapping)
+static void NewState(const NFA& nfa, const StateSet& nfaAccepting, const StateSet& nfaStateSet, 
+    std::vector<DFA::State>& states, std::unordered_map<StateSet, size_t, StateSetHash>& mapping)
 {
-    /// determine the state's rule tag (if it has one)
+    /// calculate set of accepting states in the set of states and use first available rule tag
     ///
+    StateSet accepted = (nfaStateSet & nfaAccepting);
     size_t dfaStateRuleTag = NO_RULE_TAG;
-    for (size_t i = set.find_first(); i != StateSet::npos; i = set.find_next(i))
+    if (accepted.any())
     {
-        if (nfa.states[i].ruleTag != NO_RULE_TAG)
-        {
-            dfaStateRuleTag = nfa.states[i].ruleTag;
-            break;
-        }
+        dfaStateRuleTag = nfa.states[accepted.find_first()].ruleTag;
     }
 
-
-    /// add the state and update the mapping
+    /// add the state and update the mapping of the state set to the state index
     ///
     states.emplace_back(
         states.size(),
         dfaStateRuleTag,
         std::unordered_map<char, size_t>{}
     );
-
-    mapping[set] = states.size()-1;
+    mapping[nfaStateSet] = states.size()-1;
 }
 
 void DFA::Powerset(const NFA &nfa, DFA &dfa)
 {
+    /// initialize cache of nfa closures and bitset for nfa accepting state
+    ///
     std::vector<StateSet> closureCache = InitEpClosureCache(nfa);
-    
+    StateSet nfaAccept(nfa.states.size());
+    for (size_t astate : nfa.accept)
+    {
+        nfaAccept.set(astate);
+    }
+
+    /// setyp dfa related variables
+    ///
     std::vector<DFA::State>& states = dfa.states_;
     states.reserve(nfa.states.size() / 2); /// heuristically guess max states of dfa
     std::unordered_map<StateSet, size_t, StateSetHash> mapping;
+    
+    /// initialize fringe and add starting and dead state to it
+    ///
     std::stack<StateSet> fringe;
     
     StateSet state(nfa.states.size()); 
     state.set(nfa.start);
     EpClosure(closureCache, state);
     fringe.push(state);
-    NewState(nfa, state, states, mapping);
+    NewState(nfa, nfaAccept, state, states, mapping);
+
+    StateSet deadState(nfa.states.size());
+    NewState(nfa, nfaAccept, deadState, states, mapping);
+    dfa.deadState_ = states.size()-1;
 
     std::cout << "Starting State: ";
     Debug(state);
 
+    std::cout << "Dead State: ";
+    Debug(deadState);
+
+    /// calculate the powerset construction of nfa 
+    ///
     while (!fringe.empty())
     {
         state = pop(fringe);
@@ -168,7 +183,7 @@ void DFA::Powerset(const NFA &nfa, DFA &dfa)
 
             if (!mapping.contains(s0))
             {
-                NewState(nfa, s0, states, mapping);
+                NewState(nfa, nfaAccept, s0, states, mapping);
                 fringe.push(s0);
             }
             states[mapping[state]].transitions[symbol] = mapping[s0];

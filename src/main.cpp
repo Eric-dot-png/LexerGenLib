@@ -26,7 +26,7 @@ static void DrawStateMachine(const T& sm, const char * const outFilePath)
 
     for (const auto& state : sm.States())
     {
-        std::string shape = (sm.Accepting().contains(state.index) ? "doublecircle" : "circle");
+        std::string shape = (state.ruleTag != NO_RULE_TAG ? "doublecircle" : "circle");
         file << std::format("q{} [shape={}, label=\"{}\"];\n", state.index, shape, state.index);
     }
 
