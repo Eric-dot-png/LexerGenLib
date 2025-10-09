@@ -13,9 +13,20 @@
 #include <boost/dynamic_bitset.hpp>
 #include <boost/functional/hash.hpp>
 #include <stack>
+#include <queue>
 
 using StateSet = boost::dynamic_bitset<>;
 using StateSetHash = boost::hash<boost::dynamic_bitset<>>;
+
+template <typename F>
+inline void StateSetIter(const StateSet& set, F&& function)
+{
+    for (size_t stateIndex = set.find_first(); stateIndex != StateSet::npos;
+            stateIndex = set.find_next(stateIndex))
+    {
+        function(stateIndex);
+    }
+}
 
 #warning Debug in DFA.cpp
 static void Debug(const StateSet& state)
@@ -48,6 +59,141 @@ size_t DFA::Dead() const
 const std::vector<DFA::State> &DFA::States() const
 {
     return states_;
+}
+
+void DFA::Minimize(DFA &dfa)
+{
+    const size_t N = dfa.states_.size();
+
+    /// compute initial partition which contains only the non-accepting 
+    /// (therefore non-tagged) set of states in the dfa and not the dead state
+    /// as tagged accept states are singular and non-merable, as well as the dead state
+    ///
+    std::vector<StateSet> partition(1, StateSet(N));
+    std::vector<size_t> stateToBlock(N, INVALID_STATE_INDEX);
+    for (const State& state : dfa.states_)
+    {
+        if (state.caseTag == NO_CASE_TAG && state.index != dfa.deadState_)
+        {
+            partition[0].set(state.index);
+            stateToBlock[state.index] = 0;
+        }
+    }
+    
+    /// initialize pre map such that the map contains the inverse function delta. 
+    /// I.e. pre[c][dest] = set of states which upon c go to dest
+    /// 
+    std::unordered_map<char, std::unordered_map<size_t, StateSet>> preMap;
+    for (char c : ALPHABET)
+    {
+        preMap[c]; // initialize every character
+    }
+    for (const State& state : dfa.states_)
+    {
+        for (const auto& [symbol, result] : state.transitions)
+        {
+            if (!preMap[symbol].contains(result))
+            {
+                preMap[symbol][result] = StateSet(dfa.states_.size());
+            }
+            preMap[symbol][result].set(state.index);
+        }
+    }
+
+    /// initialize work list
+    ///
+    std::queue<std::pair<StateSet, char>> worklist;
+    for (char symbol : ALPHABET)
+    {
+        worklist.push({partition[0], symbol});
+    }
+
+    /// refine the partition
+    ///
+    StateSet preSet(N); // set of states that go into a on c
+    while(!worklist.empty())
+    {
+        auto [A, c] = pop(worklist);
+        preSet.clear();
+    
+        if (!A.any()) continue; /// no states to act on (maybe remove?)
+
+        /// compute all the states that have a transition into A from c
+        ///
+        for (size_t stateI = A.find_first(); stateI != StateSet::npos; stateI = A.find_next(stateI))
+        {
+            preSet |= preMap[c][stateI]; 
+        }
+
+        for (size_t partitionI = 0; partitionI < partition.size(); ++partitionI)
+        {
+            StateSet X = partition[partitionI] & preSet;
+            StateSet Y = partition[partitionI] & (~preSet);
+
+            if (X.any() && Y.any())
+            {
+                StateSet& smaller = (X.count() <= Y.count() ? X : Y);
+                StateSet& larger = (X.count() > Y.count() ? X : Y);
+
+                partition[partitionI] = larger;
+                partition.push_back(smaller);
+
+                /// update the mapping of each state involved
+                ///
+                for (size_t stateIndex = smaller.find_first(); stateIndex != StateSet::npos; 
+                    stateIndex = smaller.find_next(stateIndex))
+                {
+                    stateToBlock[stateIndex] = partition.size()-1;
+                }
+                for (size_t stateIndex = larger.find_first(); stateIndex != StateSet::npos; 
+                    stateIndex = larger.find_next(stateIndex))
+                {
+                    stateToBlock[stateIndex] = partitionI;
+                }
+                
+                /// add to the worklist
+                ///
+                for (char symbol : ALPHABET)
+                {
+                    worklist.push({smaller, symbol});
+                }
+            }
+        }
+    }
+
+    /// now add the ommited accept states and dead state
+    ///
+    for (const State& state : dfa.states_)
+    {
+        if (state.caseTag != NO_CASE_TAG || state.index == dfa.deadState_)
+        {
+            StateSet singletonSet(dfa.states_.size());
+            singletonSet.set(state.index);
+            partition.push_back(singletonSet);
+            stateToBlock[state.index] = partition.size() - 1;
+        }
+    }
+
+    /// finally, make the new set of dfa states
+    ///
+    std::vector<DFA::State> newStates(partition.size());
+    for (size_t partitionI = 0; partitionI < partition.size(); ++partitionI)
+    {
+        size_t repI = partition[partitionI].find_first();
+        DFA::State& repState = dfa.states_[repI];
+        newStates[partitionI] = DFA::State{
+            .index = partitionI,
+            .caseTag = repState.caseTag,
+            .transitions = {} // complete this below
+        };
+        for (const auto& [symbol, oldResult] : repState.transitions)
+        {
+            newStates[partitionI].transitions[symbol] = stateToBlock[oldResult];
+        }
+    }
+    dfa.states_ = std::move(newStates);
+    dfa.start_ = stateToBlock[dfa.start_];
+    dfa.deadState_ = stateToBlock[dfa.deadState_];
 }
 
 static std::vector<StateSet> InitEpClosureCache(const NFA &nfa)
@@ -111,10 +257,10 @@ static void NewState(const NFA& nfa, const StateSet& nfaAccepting, const StateSe
     /// calculate set of accepting states in the set of states and use first available rule tag
     ///
     StateSet accepted = (nfaStateSet & nfaAccepting);
-    size_t dfaStateRuleTag = NO_RULE_TAG;
+    size_t dfaStateRuleTag = NO_CASE_TAG;
     if (accepted.any())
     {
-        dfaStateRuleTag = nfa.states[accepted.find_first()].ruleTag;
+        dfaStateRuleTag = nfa.states[accepted.find_first()].caseTag;
     }
 
     /// add the state and update the mapping of the state set to the state index
@@ -154,9 +300,11 @@ void DFA::Powerset(const NFA &nfa, DFA &dfa)
     fringe.push(state);
     NewState(nfa, nfaAccept, state, states, mapping);
 
-    StateSet deadState(nfa.states.size());
+    StateSet deadState(nfa.states.size()); /// all 0
     NewState(nfa, nfaAccept, deadState, states, mapping);
     dfa.deadState_ = states.size()-1;
+    /// avoid pushing dead state to fringe. DFA stops when encountering dead state,
+    /// so no need to calculate anything with dead state
 
     std::cout << "Starting State: ";
     Debug(state);

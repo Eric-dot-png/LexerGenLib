@@ -12,7 +12,7 @@
 const std::unordered_set<char> ALPHABET = []()
 {
     std::unordered_set<char> ret{ };
-    for (int c = 32; c < 127; ++c)
+    for (int c = 32; c < 128; ++c)
     {
         //std::cout << (char) c << std::endl;
         ret.insert((char)c);
@@ -24,7 +24,7 @@ const std::unordered_set<char> ALPHABET = []()
 }();
 
 /// @brief state not having a rule associated with it
-constexpr size_t NO_RULE_TAG = std::numeric_limits<std::size_t>::max();
+constexpr size_t NO_CASE_TAG = std::numeric_limits<std::size_t>::max();
 
 /// @brief invalid state index, used for no transition / placeholder
 constexpr size_t INVALID_STATE_INDEX = std::numeric_limits<std::size_t>::max();

@@ -17,7 +17,7 @@ public:
     struct State
     {
         size_t index;
-        size_t ruleTag;
+        size_t caseTag;
         std::unordered_map<char, size_t> transitions;
     };
 
@@ -27,11 +27,14 @@ public:
     size_t Dead() const;
     const std::vector<State>& States() const;
 
+    static void Minimize(DFA& dfa);
+
 private:
     DFA();
     static void Powerset(const NFA& nfa, DFA& dfa);
-
+    
     size_t start_; ///< starting state index
     size_t deadState_; ///< dead state index
+    size_t numCases_; ///< number of cases in this dfa
     std::vector<State> states_; ///< state vector
 };

@@ -10,12 +10,15 @@
 #include "LexerUtil/Macros.hpp"
 #include "LexerUtil/Misc.hpp"
 
-NFA NFABuilder::Build(const std::vector<RuleCase> & ruleCases)
+#include <iostream>
+
+NFA NFABuilder::Build(std::vector<RuleCase> ruleCases)
 {
     NFA ret { 
         .start = INVALID_STATE_INDEX,
         .accept = {},
-        .states = {}
+        .states = {},
+        .numCases = ruleCases.size()
     };
 
     std::vector<Fragment> fragments;
@@ -24,8 +27,9 @@ NFA NFABuilder::Build(const std::vector<RuleCase> & ruleCases)
     size_t ruleNo = 0;
     size_t startIndex = ret.start = NewState(ret.states);
 
-    for (const RuleCase& ruleCase : ruleCases)
+    for (RuleCase& ruleCase : ruleCases)
     {
+        PreProcessor::PreProcess(ruleCase);
         Fragment frag{ };
         BuildFragment(ruleCase, ret.states, frag);
         size_t caseIndex = ConcludeCase(ruleNo++, frag, ret.states, ret.accept);
@@ -37,7 +41,7 @@ NFA NFABuilder::Build(const std::vector<RuleCase> & ruleCases)
 
 size_t NFABuilder::NewState(std::vector<NFA::State> &nfaStates)
 {
-    return NFABuilder::NewState(NO_RULE_TAG, nfaStates);   
+    return NFABuilder::NewState(NO_CASE_TAG, nfaStates);   
 }
 
 size_t NFABuilder::NewState(size_t ruleNo, std::vector<NFA::State> &nfaStates)
@@ -46,8 +50,6 @@ size_t NFABuilder::NewState(size_t ruleNo, std::vector<NFA::State> &nfaStates)
     nfaStates.emplace_back(stateIndex, ruleNo, std::vector<NFA::Transition>{});
     return stateIndex;
 }
-
-#include <iostream>
 
 void NFABuilder::PatchHoles(const std::vector<Fragment::Hole> &holes, 
     size_t patchState, std::vector<NFA::State> &nfaStates)
@@ -59,8 +61,6 @@ void NFABuilder::PatchHoles(const std::vector<Fragment::Hole> &holes,
         nfaStates[hole.holeIndex].transitions.emplace_back(hole.tVal, patchState);
     }
 }
-
-#include <iostream>
 
 void NFABuilder::Debug(const Fragment &frag)
 {
@@ -161,13 +161,14 @@ auto NFABuilder::ApplyKStar(const Fragment &fragment,
 auto NFABuilder::ApplyKPlus(const Fragment &fragment, 
     std::vector<NFA::State> &nfaStates) -> Fragment
 {
-    Fragment kstar = ApplyKStar(fragment, nfaStates);
-    return ApplyCat(fragment, kstar, nfaStates);
+    (void)fragment; (void)nfaStates;
+    THROW_ERR("Unimplemented '+' operator");
 }
 
 auto NFABuilder::ApplyKOpt(const Fragment& fragment,
     std::vector<NFA::State> &nfaStates) -> Fragment
 {
+    (void)fragment; (void)nfaStates;
     THROW_ERR("Unimplemented '?' operator");
 }
 

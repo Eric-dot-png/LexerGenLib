@@ -35,7 +35,7 @@ public:
     ///       will be treated as strings
     /// @param preProcessedPatterns patterns that have been pre-processed
     /// @return the NFA constructed from the patterns
-    static NFA Build(const std::vector<RuleCase>& preProcessedPatterns);
+    static NFA Build(std::vector<RuleCase> preProcessedPatterns);
 
 private:
     /// @brief struct representing a fragment. a fragment has an index, but

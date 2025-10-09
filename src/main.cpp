@@ -26,7 +26,7 @@ static void DrawStateMachine(const T& sm, const char * const outFilePath)
 
     for (const auto& state : sm.States())
     {
-        std::string shape = (state.ruleTag != NO_RULE_TAG ? "doublecircle" : "circle");
+        std::string shape = (state.caseTag != NO_CASE_TAG ? "doublecircle" : "circle");
         file << std::format("q{} [shape={}, label=\"{}\"];\n", state.index, shape, state.index);
     }
 
@@ -52,15 +52,13 @@ int main()
     try
     {
         RuleCase pattern {
-            .patternData = "0123456789_",
+            .patternData = "[a-zA-Z_][0-9a-zA-Z_]*",
             .patternType = RuleCase::Pattern_t::REGEX,
             .matchAlias = "",
             .actionCode = ""
         };
 
-        PreProcessor::PreProcess(pattern);
         NFA n = NFABuilder::Build({pattern});
-        std::cout << n.states.size() << std::endl;
         DrawStateMachine(n, "output/nfa.dot");
         DFA m(n);
         DrawStateMachine(m, "output/dfa.dot");

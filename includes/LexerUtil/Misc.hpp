@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <queue>
 #include <stack>
 #include <string>
 #include <sstream>
@@ -12,6 +13,14 @@ T pop(std::stack<T>& stk)
 {
     T val = stk.top();
     stk.pop();
+    return val;
+}
+
+template <typename T>
+T pop(std::queue<T>& queue)
+{
+    T val = queue.front();
+    queue.pop();
     return val;
 }
 
