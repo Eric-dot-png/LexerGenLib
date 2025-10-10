@@ -8,18 +8,18 @@
 #include <string>
 #include <sstream>
 
-template <typename T>
-T pop(std::stack<T>& stk) 
+template <typename SM_t>
+SM_t pop(std::stack<SM_t>& stk) 
 {
-    T val = stk.top();
+    SM_t val = stk.top();
     stk.pop();
     return val;
 }
 
-template <typename T>
-T pop(std::queue<T>& queue)
+template <typename SM_t>
+SM_t pop(std::queue<SM_t>& queue)
 {
-    T val = queue.front();
+    SM_t val = queue.front();
     queue.pop();
     return val;
 }

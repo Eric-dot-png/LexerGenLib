@@ -1,6 +1,6 @@
 # file : makefile
 
-LIBNAME = lexerlib# replace
+LIBNAME = liblexer
 EXE := a.out
 STATIC_LIB := $(LIBNAME).a
 
@@ -10,7 +10,7 @@ INC_DIR := includes
 
 BUILD_DIR := build
 BIN_DIR := $(BUILD_DIR)/bin
-LIB_DIR := $(BUILD_DIR)/$(LIBNAME)
+LIB_DIR := $(BUILD_DIR)/thislib
 OBJ_DIR := $(BUILD_DIR)/obj
 OUT_DIR := output
 
@@ -53,7 +53,7 @@ clean:
 c:
 	rm -rf $(BUILD_DIR)
 
-$(EXE): CXXFLAGS += -DMDEBUG
+$(EXE): CXXFLAGS += -DDEBUG_MODE
 $(EXE): $(BIN_DIR) $(OBJS)
 	$(CXX) $(CXXFLAGS) $(ASAN) $(OBJS) -o $(BIN_DIR)/$(EXE)
 

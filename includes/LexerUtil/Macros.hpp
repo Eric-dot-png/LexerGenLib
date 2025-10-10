@@ -51,9 +51,9 @@ inline void ThrowIFNTrue(bool cond, const char * const file,
 
 /// @brief Debug output stream. In release mode, this outputs to a null stream. 
 ///        In debug mode, this outputs to DBG.
-#ifndef MDEBUG
-#define DBG nullout
-#else
+#ifdef DEBUG_MODE
 #warning "Debug mode enabled"
 #define DBG std::cout
+#else
+#define DBG nullout
 #endif
