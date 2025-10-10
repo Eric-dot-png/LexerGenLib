@@ -33,7 +33,7 @@ static void Debug(const StateSet& state)
 {
     std::string dbgStr = "";
     boost::to_string(state, dbgStr);
-    std::cout << dbgStr << std::endl;
+    DBG << dbgStr << std::endl;
 }
 
 DFA::DFA(const NFA &nfa)
@@ -65,6 +65,8 @@ void DFA::Minimize(DFA &dfa)
 {
     const size_t N = dfa.states_.size();
 
+    DBG << "Minimizing dfa with " << N << " states." << std::endl;
+
     /// compute initial partition which contains only the non-accepting 
     /// (therefore non-tagged) set of states in the dfa and not the dead state
     /// as tagged accept states are singular and non-merable, as well as the dead state
@@ -80,6 +82,9 @@ void DFA::Minimize(DFA &dfa)
         }
     }
     
+    DBG << "Partition computed: ";
+    Debug(partition[0]);
+
     /// initialize pre map such that the map contains the inverse function delta. 
     /// I.e. pre[c][dest] = set of states which upon c go to dest
     /// 
@@ -94,11 +99,13 @@ void DFA::Minimize(DFA &dfa)
         {
             if (!preMap[symbol].contains(result))
             {
-                preMap[symbol][result] = StateSet(dfa.states_.size());
+                preMap[symbol][result].resize(N);
             }
             preMap[symbol][result].set(state.index);
         }
     }
+
+    DBG << "PreMap calculated" << std::endl;
 
     /// initialize work list
     ///
@@ -108,22 +115,36 @@ void DFA::Minimize(DFA &dfa)
         worklist.push({partition[0], symbol});
     }
 
+    DBG << "Work list initialized" << std::endl;
+ 
     /// refine the partition
     ///
     StateSet preSet(N); // set of states that go into a on c
     while(!worklist.empty())
     {
         auto [A, c] = pop(worklist);
-        preSet.clear();
-    
+        preSet.reset();
+
+        DBG << "Processing ";
+        Debug(A);
+        DBG << "   on symbol " << Escaped(c) << std::endl;
+
         if (!A.any()) continue; /// no states to act on (maybe remove?)
 
         /// compute all the states that have a transition into A from c
         ///
         for (size_t stateI = A.find_first(); stateI != StateSet::npos; stateI = A.find_next(stateI))
         {
-            preSet |= preMap[c][stateI]; 
+            if (preMap[c].contains(stateI))
+            {
+                DBG << "stateI " << stateI << " : ";
+                DBG << "sameSize? " << preSet.size() << ' ' << preMap[c][stateI].size() << std::endl;
+                preSet |= preMap[c][stateI]; 
+            }
         }
+
+        DBG << "Pre Set: ";
+        Debug(preSet);
 
         for (size_t partitionI = 0; partitionI < partition.size(); ++partitionI)
         {
@@ -161,18 +182,22 @@ void DFA::Minimize(DFA &dfa)
         }
     }
 
+    DBG << "Partition refined." << std::endl;
+
     /// now add the ommited accept states and dead state
     ///
     for (const State& state : dfa.states_)
     {
         if (state.caseTag != NO_CASE_TAG || state.index == dfa.deadState_)
         {
-            StateSet singletonSet(dfa.states_.size());
+            StateSet singletonSet(N);
             singletonSet.set(state.index);
             partition.push_back(singletonSet);
             stateToBlock[state.index] = partition.size() - 1;
         }
     }
+
+    DBG << "Added omitted states." << std::endl;
 
     /// finally, make the new set of dfa states
     ///
@@ -194,6 +219,8 @@ void DFA::Minimize(DFA &dfa)
     dfa.states_ = std::move(newStates);
     dfa.start_ = stateToBlock[dfa.start_];
     dfa.deadState_ = stateToBlock[dfa.deadState_];
+
+    DBG << "DFA minimized." << std::endl;
 }
 
 static std::vector<StateSet> InitEpClosureCache(const NFA &nfa)
@@ -306,10 +333,10 @@ void DFA::Powerset(const NFA &nfa, DFA &dfa)
     /// avoid pushing dead state to fringe. DFA stops when encountering dead state,
     /// so no need to calculate anything with dead state
 
-    std::cout << "Starting State: ";
+    DBG << "Starting State: ";
     Debug(state);
 
-    std::cout << "Dead State: ";
+    DBG << "Dead State: ";
     Debug(deadState);
 
     /// calculate the powerset construction of nfa 
@@ -318,7 +345,7 @@ void DFA::Powerset(const NFA &nfa, DFA &dfa)
     {
         state = pop(fringe);
         StateSet s0;   
-        std::cout << "Evaluating ";
+        DBG << "Evaluating ";
         Debug(state);
 
         for (char symbol : ALPHABET)
@@ -326,7 +353,7 @@ void DFA::Powerset(const NFA &nfa, DFA &dfa)
             s0 = state; 
             Move(nfa, symbol, s0);
             EpClosure(closureCache, s0);
-            std::cout << std::format("    ({}) resulted in ", Escaped(symbol));
+            DBG << std::format("    ({}) resulted in ", Escaped(symbol));
             Debug(s0);
 
             if (!mapping.contains(s0))

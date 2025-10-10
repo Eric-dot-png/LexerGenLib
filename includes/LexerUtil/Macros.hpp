@@ -4,6 +4,9 @@
 
 #pragma once
 
+#include "NullStream.hpp"
+
+#include <iostream>
 #include <stdexcept>
 #include <format>
 #include <string_view>
@@ -45,3 +48,12 @@ inline void ThrowIFNTrue(bool cond, const char * const file,
 #define ENSURES_THROW(xCond, xMsg) ThrowIFNTrue(xCond, __FILE__, __LINE__, xMsg);
 
 #define UNREACHABLE() __builtin_unreachable()
+
+/// @brief Debug output stream. In release mode, this outputs to a null stream. 
+///        In debug mode, this outputs to DBG.
+#ifndef MDEBUG
+#define DBG nullout
+#else
+#warning "Debug mode enabled"
+#define DBG std::cout
+#endif

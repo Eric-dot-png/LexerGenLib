@@ -1,7 +1,7 @@
 # file : makefile
 
 LIBNAME = lexerlib# replace
-TARGET := a.out
+EXE := a.out
 STATIC_LIB := $(LIBNAME).a
 
 # directories
@@ -23,10 +23,8 @@ ASAN := -fsanitize=address,leak -g -fno-omit-frame-pointer
 SRCS := $(wildcard $(SRC_DIR)/*.cpp)
 OBJS := $(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(SRCS))
 
-all: $(TARGET)
-
 # build executable
-exe: $(TARGET)
+exe: $(EXE)
 
 # build static library
 lib: $(STATIC_LIB)
@@ -46,6 +44,7 @@ l: $(OUT_DIR)
 graph: $(OUT_DIR)
 	dot -Tsvg -o $(OUT_DIR)/nfa.svg $(OUT_DIR)/nfa.dot
 	dot -Tsvg -o $(OUT_DIR)/dfa.svg $(OUT_DIR)/dfa.dot
+#dot -Tsvg -o $(OUT_DIR)/dfaMin.svg $(OUT_DIR)/dfaMin.dot
 
 # clean the directory 
 clean: 
@@ -54,8 +53,9 @@ clean:
 c:
 	rm -rf $(BUILD_DIR)
 
-$(TARGET): $(BIN_DIR) $(OBJS)
-	$(CXX) $(CXXFLAGS) $(ASAN) $(OBJS) -o $(BIN_DIR)/$(TARGET)
+$(EXE): CXXFLAGS += -DMDEBUG
+$(EXE): $(BIN_DIR) $(OBJS)
+	$(CXX) $(CXXFLAGS) $(ASAN) $(OBJS) -o $(BIN_DIR)/$(EXE)
 
 $(STATIC_LIB): $(LIB_DIR) $(OBJS)
 	ar rcs $(LIB_DIR)/lib/$(STATIC_LIB) $(filter-out $(OBJ_DIR)/main.o, $(OBJS))

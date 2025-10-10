@@ -54,24 +54,24 @@ size_t NFABuilder::NewState(size_t ruleNo, std::vector<NFA::State> &nfaStates)
 void NFABuilder::PatchHoles(const std::vector<Fragment::Hole> &holes, 
     size_t patchState, std::vector<NFA::State> &nfaStates)
 {
-    std::cout << "PatchHoles(holes, " << patchState << ")\n";
+    DBG << "PatchHoles(holes, " << patchState << ")\n";
     for (const auto& hole : holes)
     {
-        std::cout << "    " << hole.holeIndex << "['" << hole.tVal << "'] = " << patchState << "\n"; 
+        DBG << "    " << hole.holeIndex << "['" << hole.tVal << "'] = " << patchState << "\n"; 
         nfaStates[hole.holeIndex].transitions.emplace_back(hole.tVal, patchState);
     }
 }
 
 void NFABuilder::Debug(const Fragment &frag)
 {
-    std::cout << "<Fragment " << &frag << ", startIndex=" << frag.startIndex
+    DBG << "<Fragment " << &frag << ", startIndex=" << frag.startIndex
         << ", holes=[";
     for (const Fragment::Hole& hole : frag.holes)
     {
-        std::cout << '(' << hole.holeIndex << ", \'"
+        DBG << '(' << hole.holeIndex << ", \'"
             << hole.tVal << "\') ";
     }
-    std::cout << "]>" << std::endl;
+    DBG << "]>" << std::endl;
 }
 
 auto NFABuilder::MakeLiteral(char a, std::vector<NFA::State> &nfaStates)
@@ -182,9 +182,9 @@ auto NFABuilder::ApplyOperator(PreProcessor::Operator_t op, std::stack<Fragment>
     {
         Fragment right = pop(fragStack);
         Fragment left = pop(fragStack);
-        std::cout << "Applying Union operator to";
+        DBG << "Applying Union operator to";
         Debug(left);
-        std::cout << "and ";
+        DBG << "and ";
         Debug(right);
         return ApplyUnion(left, right, nfaStates);
     }
@@ -192,30 +192,30 @@ auto NFABuilder::ApplyOperator(PreProcessor::Operator_t op, std::stack<Fragment>
     {
         Fragment right = pop(fragStack);
         Fragment left = pop(fragStack);
-        std::cout << "Applying Concat operator to";
+        DBG << "Applying Concat operator to";
         Debug(left);
-        std::cout << "and ";
+        DBG << "and ";
         Debug(right);
         return ApplyCat(left,right,nfaStates);
     }
     case KSTAR:
     {
         Fragment a = pop(fragStack);
-        std::cout << "Applying KSTAR operator to";
+        DBG << "Applying KSTAR operator to";
         Debug(a);
         return ApplyKStar(a, nfaStates);
     }
     case KPLUS:
     {
         Fragment a = pop(fragStack);
-        std::cout << "Applying KPLUS operator to";
+        DBG << "Applying KPLUS operator to";
         Debug(a);
         return ApplyKPlus(a, nfaStates);
     }
     case OPTIONAL:
     {
         Fragment a = pop(fragStack);
-        std::cout << "Applying OPTIONAL operator to";
+        DBG << "Applying OPTIONAL operator to";
         Debug(a);
         return ApplyKOpt(a, nfaStates);
     }
@@ -277,14 +277,14 @@ void NFABuilder::ShuntingYard(const RuleCase &ruleCase, Fragment &fragment,
     ///
     for (char c : pattern) 
     {
-        std::cout << "ShuntingYard pass: 0x" << std::setfill('0')  
+        DBG << "ShuntingYard pass: 0x" << std::setfill('0')  
             << std::hex << (int)c << std::setfill(' ') << std::dec << std::endl; 
 
         if (!PreProcessor::IsOperator(c))
         {
             EXPECTS_THROW(expectOperand, std::format("Expected literal, got '{}'", c));
             fragStack.push(MakeLiteral(c, nfaStates));
-            std::cout << "Pushed Literal Fragment ";
+            DBG << "Pushed Literal Fragment ";
             Debug(fragStack.top());
             expectOperand = false;
         }
@@ -295,14 +295,14 @@ void NFABuilder::ShuntingYard(const RuleCase &ruleCase, Fragment &fragment,
             {
             case PreProcessor::Operator_t::LPAREN: 
             {
-                std::cout << "Found LPAREN" << std::endl;
+                DBG << "Found LPAREN" << std::endl;
                 opStack.push(PreProcessor::Operator_t::LPAREN);
                 expectOperand = true;
                 break;
             }
             case PreProcessor::Operator_t::RPAREN:
             {
-                std::cout << "Found RPAREN" << std::endl;
+                DBG << "Found RPAREN" << std::endl;
                 EXPECTS_THROW(!expectOperand, "TODO: Unkerr?");
 
                 /// pop off the stack until we find a left paren
@@ -312,7 +312,7 @@ void NFABuilder::ShuntingYard(const RuleCase &ruleCase, Fragment &fragment,
                 {
                     PreProcessor::Operator_t op = pop(opStack);
                     fragStack.push(ApplyOperator(op, fragStack, nfaStates));
-                    std::cout << "Pushed ";
+                    DBG << "Pushed ";
                     Debug(fragStack.top());
                 }
                 ENSURES_THROW(!opStack.empty() && opStack.top() == PreProcessor::Operator_t::LPAREN, "TODO: UNKERR?");
@@ -323,7 +323,7 @@ void NFABuilder::ShuntingYard(const RuleCase &ruleCase, Fragment &fragment,
             }
             default:
             {
-                std::cout << "Found an operator" << std::endl;
+                DBG << "Found an operator" << std::endl;
                 EXPECTS_THROW(!expectOperand, "Unexpected operator");
 
                 /// pop off the stack until we find a lower precedence operator or a left paren or empty
@@ -335,7 +335,7 @@ void NFABuilder::ShuntingYard(const RuleCase &ruleCase, Fragment &fragment,
                 {
                     PreProcessor::Operator_t op2 = pop(opStack);
                     fragStack.push(ApplyOperator(op2, fragStack, nfaStates));
-                    std::cout << "Pushed ";
+                    DBG << "Pushed ";
                     Debug(fragStack.top());
                 }
 

@@ -14,7 +14,7 @@ const std::unordered_set<char> ALPHABET = []()
     std::unordered_set<char> ret{ };
     for (int c = 32; c < 128; ++c)
     {
-        //std::cout << (char) c << std::endl;
+        //DBG << (char) c << std::endl;
         ret.insert((char)c);
     }
     ret.insert('\t');

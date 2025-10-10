@@ -19,12 +19,12 @@
 #warning dbg in PreProcessor.cpp
 static void dbg(std::string_view patternData)
 {
-    std::cout << std::hex << std::setfill('0');
+    DBG << std::hex << std::setfill('0');
     for (char c : patternData)
     {
-        std::cout << "0x" << std::setw(2) << (int) c << ' ';
+        DBG << "0x" << std::setw(2) << (int) c << ' ';
     }
-    std::cout << std::endl;
+    DBG << std::endl;
 }
 
 static void dbg(RuleCase& ruleCase)
@@ -55,13 +55,13 @@ void PreProcessor::PreProcess(RuleCase &ruleCase)
     }
 
     Encode(pattern);
-    std::cout << "After Encode: " << RegexStr(pattern) << std::endl;
+    DBG << "After Encode: " << RegexStr(pattern) << std::endl;
 
     UnifyRanges(pattern);
-    std::cout << "After unify: " << RegexStr(pattern) << std::endl;
+    DBG << "After unify: " << RegexStr(pattern) << std::endl;
 
     InsertConcats(pattern);
-    std::cout << "After insert: " << RegexStr(pattern) << std::endl;
+    DBG << "After insert: " << RegexStr(pattern) << std::endl;
 }
 
 void PreProcessor::PreProcess(std::vector<RuleCase> &patterns)
