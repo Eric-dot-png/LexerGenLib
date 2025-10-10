@@ -3,8 +3,9 @@
 
 #pragma once
 
-#include "NFA.hpp"
-#include "DFA.hpp"
+#include "LexerUtil/Constants.hpp"
+#include "LexerUtil/Misc.hpp"
+#include "LexerUtil/Macros.hpp"
 #include "LexerUtil/Macros.hpp"
 
 #include <fstream>
