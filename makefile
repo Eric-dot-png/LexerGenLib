@@ -10,7 +10,7 @@ INC_DIR := includes
 
 BUILD_DIR := build
 BIN_DIR := $(BUILD_DIR)/bin
-LIB_DIR := $(BUILD_DIR)/thislib
+LIB_DIR := $(BUILD_DIR)/$(LIBNAME)
 OBJ_DIR := $(BUILD_DIR)/obj
 OUT_DIR := output
 
