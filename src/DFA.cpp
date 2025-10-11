@@ -326,6 +326,7 @@ void DFA::Powerset(const NFA &nfa, DFA &dfa)
     EpClosure(closureCache, state);
     fringe.push(state);
     NewState(nfa, nfaAccept, state, states, mapping);
+    dfa.start_ = states.size()-1;
 
     StateSet deadState(nfa.states.size()); /// all 0
     NewState(nfa, nfaAccept, deadState, states, mapping);
