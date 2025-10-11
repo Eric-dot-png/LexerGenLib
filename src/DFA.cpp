@@ -366,4 +366,12 @@ void DFA::Powerset(const NFA &nfa, DFA &dfa)
             s0.reset();
         }
     }
+
+    /// fill in the dead state transitions. Not entirely neccessary, but keeps
+    /// the dfa well-formed and consistant
+    ///
+    for (char symbol : ALPHABET)
+    {
+        states[dfa.deadState_].transitions[symbol] = dfa.deadState_;
+    }
 }
