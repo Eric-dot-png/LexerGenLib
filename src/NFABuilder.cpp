@@ -11,6 +11,11 @@
 #include "LexerUtil/Misc.hpp"
 
 #include <iostream>
+#include <ranges>
+
+///
+/// Public Methods
+/// 
 
 NFA NFABuilder::Build(std::vector<RuleCase> ruleCases)
 {
@@ -25,7 +30,7 @@ NFA NFABuilder::Build(std::vector<RuleCase> ruleCases)
     fragments.reserve(ruleCases.size());
 
     size_t ruleNo = 0;
-    size_t startIndex = ret.start = NewState(ret.states);
+    size_t startIndex = ret.start = NewState(ret.states, ruleCases.size());
 
     for (RuleCase& ruleCase : ruleCases)
     {
@@ -39,16 +44,131 @@ NFA NFABuilder::Build(std::vector<RuleCase> ruleCases)
     return ret;
 }
 
-size_t NFABuilder::NewState(std::vector<NFA::State> &nfaStates)
+/// @todo move internal logic to worker function, and pass the instance of build arg to the
+///       worker method - reduce binary size
+template <Regex::ItOrder it>
+NFA NFABuilder::Build(const std::vector<Regex::Flat::Type>& exprs)
 {
-    return NFABuilder::NewState(NO_CASE_TAG, nfaStates);   
+    NFA ret {
+        .start = INVALID_STATE_INDEX,
+        .accept = {},
+        .states = {},
+        .numCases = exprs.size()
+    };
+
+    ret.start = NewState(ret.states, exprs.size());
+
+    std::vector<Fragment> frags; frags.reserve(exprs.size());
+    for (const auto& [ruleNo, expr] : std::views::enumerate(exprs))
+    {
+        Fragment ruleFrag = BuildFragment<it>(expr, ret.states);
+        size_t caseIndex = ConcludeCase(ruleNo, ruleFrag, ret.states, ret.accept);
+        ret.states[ret.start].transitions.emplace_back(EPSILON, caseIndex);
+    }
+
+    return ret;
 }
 
-size_t NFABuilder::NewState(size_t ruleNo, std::vector<NFA::State> &nfaStates)
+template NFA NFABuilder::Build<Regex::ItOrder::PRE>(const std::vector<Regex::Flat::Type>&);
+template NFA NFABuilder::Build<Regex::ItOrder::IN>(const std::vector<Regex::Flat::Type>&);
+template NFA NFABuilder::Build<Regex::ItOrder::POST>(const std::vector<Regex::Flat::Type>&);
+
+/// -----------------------------------------------------------------------------------------------
+/// Private Methods
+/// -----------------------------------------------------------------------------------------------
+
+
+/// -----------------------------------------------------------------------------------------------
+/// Build Fragments Methods
+/// -----------------------------------------------------------------------------------------------
+
+/// @brief Post-order implementation of BuildFragment
+template <>
+auto NFABuilder::BuildFragment<Regex::ItOrder::POST>(const Regex::Flat::Type &expr, 
+    std::vector<NFA::State> &states) -> Fragment
+{
+    using namespace Regex::Flat;
+    
+    std::stack<Fragment> fragments;
+
+    for (const Symbol& sym : expr)
+    {
+        fragments.push(
+            std::visit([&](auto&& symU) -> Fragment
+            {   
+                /// get the underlying type of symU
+                using T = std::decay_t<decltype(symU)>;
+
+                /// act on terminal types
+                if constexpr (std::is_same_v<T, Char_t>)
+                {
+                    return MakeChar(symU.value, states);
+                }
+                else if constexpr (std::is_same_v<T, Charset_t>)
+                {
+                    return MakeCharset(symU.lo, symU.hi, symU.inverted, states);
+                }
+                else if constexpr (std::is_same_v<T, Literal_t>)
+                {
+                    return MakeLiteral(symU.value, states);
+                }
+
+                /// act on non-terminal operator types
+                else if constexpr (std::is_same_v<T, Union_t>)
+                {
+                    Fragment right = pop(fragments);
+                    Fragment left = pop(fragments);
+                    return ApplyUnion(left, right, states);
+                }
+                else if constexpr (std::is_same_v<T, Concat_t>)
+                {
+                    Fragment right = pop(fragments);
+                    Fragment left = pop(fragments);
+                    return ApplyCat(left, right, states);
+                }
+                else if constexpr (std::is_same_v<T, KleeneStar_t>)
+                {
+                    Fragment frag = pop(fragments);
+                    return ApplyKStar(frag, states);
+                }
+            }, sym)
+        );
+    }
+    ENSURES_THROW(fragments.size() == 1, "Unexpected additional fragments in postorder evaluation");
+    return fragments.top();
+}
+
+/// @brief Pre-order implementation of BuildFragment
+template <>
+auto NFABuilder::BuildFragment<Regex::ItOrder::PRE>(const Regex::Flat::Type &expr, 
+    std::vector<NFA::State> &states) -> Fragment
+{
+    ENSURES_THROW(false, "Unimplemented");
+}
+
+/// @brief In-order implementation of BuildFragment
+template <>
+auto NFABuilder::BuildFragment<Regex::ItOrder::IN>(const Regex::Flat::Type &expr, 
+    std::vector<NFA::State> &states) -> Fragment
+{
+    ENSURES_THROW(false, "Unimplemented");
+}
+
+/// -----------------------------------------------------------------------------------------------
+/// New state / fragment management methods
+/// -----------------------------------------------------------------------------------------------
+
+size_t NFABuilder::NewState(std::vector<NFA::State> &nfaStates, size_t caseNo, size_t estTCount)
 {
     size_t stateIndex = nfaStates.size();
-    nfaStates.emplace_back(stateIndex, ruleNo, std::vector<NFA::Transition>{});
+    nfaStates.emplace_back(stateIndex, caseNo, std::vector<NFA::Transition>{});
+    nfaStates.back().transitions.reserve(estTCount);
     return stateIndex;
+}
+
+size_t NFABuilder::NewState(std::vector<NFA::State>& nfaStates, size_t estTCount)
+{
+    return NewState(nfaStates, NO_CASE_TAG, estTCount);
 }
 
 void NFABuilder::PatchHoles(const std::vector<Fragment::Hole> &holes, 
@@ -62,22 +182,10 @@ void NFABuilder::PatchHoles(const std::vector<Fragment::Hole> &holes,
     }
 }
 
-void NFABuilder::Debug(const Fragment &frag)
-{
-    DBG << "<Fragment " << &frag << ", startIndex=" << frag.startIndex
-        << ", holes=[";
-    for (const Fragment::Hole& hole : frag.holes)
-    {
-        DBG << '(' << hole.holeIndex << ", \'"
-            << hole.tVal << "\') ";
-    }
-    DBG << "]>" << std::endl;
-}
-
-auto NFABuilder::MakeLiteral(char a, std::vector<NFA::State> &nfaStates)
+auto NFABuilder::MakeChar(char a, std::vector<NFA::State> &nfaStates)
     -> NFABuilder::Fragment
 {
-    size_t q0 = NewState(nfaStates);
+    size_t q0 = NewState(nfaStates, 1);
     
     return Fragment{
         .startIndex = q0, 
@@ -88,6 +196,53 @@ auto NFABuilder::MakeLiteral(char a, std::vector<NFA::State> &nfaStates)
             } 
         } 
     };
+}
+
+auto NFABuilder::MakeCharset(char lo, char hi, bool inverted, std::vector<NFA::State> &nfaStates) 
+    -> Fragment
+{
+    // get the range of lo-hi and it's size
+    auto range = std::views::iota(lo, hi+1);
+    size_t rangeSize = std::ranges::size(range);
+
+    // make the new state and fragment
+    size_t q0 = NewState(nfaStates, rangeSize);
+    Fragment ret {
+        .startIndex = q0,
+        .holes = {}
+    };
+    ret.holes.reserve(rangeSize);
+
+    // fill in the holes
+    for (char c : range)
+    {
+        ret.holes.emplace_back(q0, c);
+    }
+
+    // return range fragment
+    return ret;
+}
+
+auto NFABuilder::MakeLiteral(std::string_view string, std::vector<NFA::State> &nfaStates) 
+    -> Fragment
+{
+    /// make sure the string isnt "" (doesnt make sense)
+    EXPECTS_THROW(string.size() > 0, "Requested Literal is empty");
+
+    /// initialize 
+    size_t index = 0;
+    Fragment first = MakeChar(string[index], nfaStates);
+    Fragment curr{ };
+
+    /// perform concatination over the literal
+    for (++index; index < string.size(); ++index)
+    {
+        curr = MakeChar(string[index], nfaStates);
+        first = ApplyCat(first, curr, nfaStates);
+    }
+
+    /// return the first fragment (which we continously applied concat to)
+    return first;
 }
 
 auto NFABuilder::ApplyCat(const Fragment &left, const Fragment &right,
@@ -102,7 +257,7 @@ auto NFABuilder::ApplyUnion(const Fragment &left, const Fragment &right,
 {
     /// add a new state and perform the union on the fragments
     ///
-    size_t newStateIndex = NewState(nfaStates);
+    size_t newStateIndex = NewState(nfaStates, 2);
     nfaStates[newStateIndex].transitions = {
         NFA::Transition{
             .symbol = EPSILON,
@@ -131,7 +286,7 @@ auto NFABuilder::ApplyUnion(const Fragment &left, const Fragment &right,
 auto NFABuilder::ApplyKStar(const Fragment &fragment, 
     std::vector<NFA::State> &nfaStates) -> Fragment
 {
-    size_t newStateIndex = NewState(nfaStates);
+    size_t newStateIndex = NewState(nfaStates, 2);
 
     /// add new epsilon transition to new state to advance (without consuming)
     /// a symbol
@@ -246,10 +401,10 @@ void NFABuilder::BuildFragment(const RuleCase &pattern,
     /// use standard literal interpretation if the pattern is a string
     ///
     std::string_view literalView = pattern.patternData;
-    fragment = MakeLiteral(literalView[0], nfaStates);
+    fragment = MakeChar(literalView[0], nfaStates);
     for (size_t i = 1; i <literalView.size();++i)
     {
-        Fragment right = MakeLiteral(literalView[i], nfaStates);
+        Fragment right = MakeChar(literalView[i], nfaStates);
         fragment = ApplyCat(fragment,right,nfaStates);
     }
 }
@@ -257,7 +412,7 @@ void NFABuilder::BuildFragment(const RuleCase &pattern,
 size_t NFABuilder::ConcludeCase(size_t ruleNo, Fragment &ruleFragment, std::vector<NFA::State> &nfaStates, 
     std::unordered_set<size_t> &nfaAccepting)
 {
-    size_t acceptState = NewState(ruleNo, nfaStates);
+    size_t acceptState = NewState(nfaStates, ruleNo, 1);
     PatchHoles(ruleFragment.holes, acceptState, nfaStates);
     nfaAccepting.insert(acceptState);
     return ruleFragment.startIndex;
@@ -283,7 +438,7 @@ void NFABuilder::ShuntingYard(const RuleCase &ruleCase, Fragment &fragment,
         if (!PreProcessor::IsOperator(c))
         {
             EXPECTS_THROW(expectOperand, std::format("Expected literal, got '{}'", c));
-            fragStack.push(MakeLiteral(c, nfaStates));
+            fragStack.push(MakeChar(c, nfaStates));
             DBG << "Pushed Literal Fragment ";
             Debug(fragStack.top());
             expectOperand = false;
@@ -359,3 +514,20 @@ void NFABuilder::ShuntingYard(const RuleCase &ruleCase, Fragment &fragment,
 
     fragment = std::move(fragStack.top());
 }
+
+/// -----------------------------------------------------------------------------------------------
+/// Debug methods
+/// -----------------------------------------------------------------------------------------------
+
+void NFABuilder::Debug(const Fragment &frag)
+{
+    DBG << "<Fragment " << &frag << ", startIndex=" << frag.startIndex
+        << ", holes=[";
+    for (const Fragment::Hole& hole : frag.holes)
+    {
+        DBG << '(' << hole.holeIndex << ", \'"
+            << hole.tVal << "\') ";
+    }
+    DBG << "]>" << std::endl;
+}
+

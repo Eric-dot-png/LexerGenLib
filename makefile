@@ -17,7 +17,7 @@ OUT_DIR := output
 # Compiler / Compiler flags 
 CXX := g++
 OPTIMIZE = O0
-CXXFLAGS := -Wall -Wextra -g -I$(INC_DIR) -MMD -MP -std=c++20 -$(OPTIMIZE)
+CXXFLAGS := -Wall -Wextra -g -I$(INC_DIR) -MMD -MP -std=c++23 -$(OPTIMIZE)
 ASAN := -fsanitize=address,leak -g -fno-omit-frame-pointer
 
 SRCS := $(wildcard $(SRC_DIR)/*.cpp)

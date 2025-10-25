@@ -1,5 +1,6 @@
 /// @file Constants.hpp
 /// @brief Contains project-wide constants
+/// @todo make this a std::range
 
 #pragma once
 
