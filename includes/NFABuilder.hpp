@@ -2,7 +2,6 @@
 /// @brief NFA builder class
 
 #include "NFA.hpp"
-#include "PreProcessor.hpp"
 #include "Regex.hpp"
 
 #include <cstddef>
@@ -27,13 +26,6 @@ public:
     /// -----------------------------------------------------------------------
     /// Public api methods 
     /// -----------------------------------------------------------------------
-
-    /// @brief method to construct an nfa from pre-processed patterns
-    /// @note If the patterns are not passed through the preprocessor, they 
-    ///       will be treated as strings
-    /// @param preProcessedPatterns patterns that have been pre-processed
-    /// @return the NFA constructed from the patterns
-    static NFA Build(std::vector<RuleCase> preProcessedPatterns);
 
     /// @brief method to construct an nfa from a flat regex type 
     /// @tparam It the iteration type of the flat regex
@@ -138,32 +130,17 @@ private:
     /// @return the constructed fragment
     static Fragment ApplyKPlus(const Fragment& fragment,
         std::vector<NFA::State>& nfaStates);
-
+    
     static Fragment ApplyKOpt(const Fragment& fragment,
         std::vector<NFA::State>& nfaStates);
-
-    static Fragment ApplyOperator(PreProcessor::Operator_t op, std::stack<Fragment>& fragStack,
-        std::vector<NFA::State>& nfaStates);
-
-    static void BuildFragment(const RuleCase& pattern, 
-        std::vector<NFA::State>& nfaStates, Fragment& fragment);
 
     static size_t ConcludeCase(size_t ruleNo, Fragment& ruleFragment, 
         std::vector<NFA::State>& nfaStates, 
         std::unordered_set<size_t>& nfaAccepting);
 
-    static void ShuntingYard(const RuleCase& pattern, Fragment& fragment,  std::vector<NFA::State>& nfaStates);
-
-
-
-
-
-
     /// -----------------------------------------------------------------------
     ///  Debug functions (to be removed)
     /// -----------------------------------------------------------------------
-    #warning debug functions are enabled
-
     static void Debug(const Fragment& frag);
 
 };

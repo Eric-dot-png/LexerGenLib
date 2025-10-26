@@ -13,9 +13,9 @@ namespace Regex
     /// @brief type of iteration over regex containers
     enum class ItOrder : size_t
     {
-        PRE = 0,
-        IN = 1,
-        POST = 2
+        PRE = 0, /// pre-order 
+        IN = 1, /// in-order
+        POST = 2 /// post-order (fastest)
     };
 
     /// @brief NS for Flattened regex types. These types are not recursive (non-ast), and are meant for postorder traversal

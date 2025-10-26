@@ -28,7 +28,6 @@ inline void StateSetIter(const StateSet& set, F&& function)
     }
 }
 
-#warning Debug in DFA.cpp
 static void Debug(const StateSet& state)
 {
     std::string dbgStr = "";
