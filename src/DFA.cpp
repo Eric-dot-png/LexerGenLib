@@ -345,17 +345,13 @@ void DFA::Powerset(const NFA &nfa, DFA &dfa)
     {
         state = pop(fringe);
         StateSet s0;   
-        DBG << "Evaluating ";
-        Debug(state);
-
+        
         for (char symbol : ALPHABET)
         {
             s0 = state; 
             Move(nfa, symbol, s0);
             EpClosure(closureCache, s0);
-            DBG << std::format("    ({}) resulted in ", Escaped(symbol));
-            Debug(s0);
-
+            
             if (!mapping.contains(s0))
             {
                 NewState(nfa, nfaAccept, s0, states, mapping);
