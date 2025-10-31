@@ -222,6 +222,33 @@ void DFA::Minimize(DFA &dfa)
     DBG << "DFA minimized." << std::endl;
 }
 
+size_t DFA::Match(std::string_view input) const
+{
+    size_t stateIndex = start_;
+    size_t lastTag = states_[stateIndex].caseTag;
+    for (char c : input)
+    {
+        stateIndex = states_[stateIndex].transitions.at(c);
+        lastTag = states_[stateIndex].caseTag == NO_CASE_TAG ? lastTag : states_[stateIndex].caseTag;
+        if (stateIndex == deadState_) break;
+    }
+    return lastTag;
+}
+
+std::vector<size_t> DFA::Trace(std::string_view input) const
+{
+    size_t stateIndex = start_;
+    std::vector<size_t> ret; ret.reserve(input.size()+1);
+    ret.push_back(stateIndex);
+    
+    for (char c : input)
+    {
+        stateIndex = states_[stateIndex].transitions.at(c);
+        ret.push_back(stateIndex);    
+    }
+    return ret;
+}
+
 static std::vector<StateSet> InitEpClosureCache(const NFA &nfa)
 {
     std::vector<StateSet> closureCache(nfa.states.size());

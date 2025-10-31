@@ -78,7 +78,7 @@ auto NFABuilder::BuildFragment<Regex::ItOrder::POST>(const Regex::Flat::Type &ex
                 }
                 else if constexpr (std::is_same_v<T, Charset_t>)
                 {
-                    return MakeCharset(symU.lo, symU.hi, symU.inverted, states);
+                    return MakeCharset(symU.chars, symU.inverted, states);
                 }
                 else if constexpr (std::is_same_v<T, Literal_t>)
                 {
@@ -174,39 +174,34 @@ auto NFABuilder::MakeChar(char a, std::vector<NFA::State> &nfaStates)
     };
 }
 
-auto NFABuilder::MakeCharset(char lo, char hi, bool inverted, std::vector<NFA::State> &nfaStates) 
+auto NFABuilder::MakeCharset(const std::unordered_set<char>& chars, bool inverted, std::vector<NFA::State> &nfaStates) 
     -> Fragment
 {
-    // get the range of lo-hi and it's size
-    auto base = std::views::iota(lo, static_cast<char>(hi+1));
-    size_t baseSize = std::ranges::size(base);
+    size_t size = (inverted ? ALPHABET.size() - chars.size() : chars.size());
 
-    // get the inverted range of lo-hi and that size
-    auto inv = ALPHABET | std::views::filter([&](char c){ return c < lo || c > hi; });
-    size_t invSize = ALPHABET_SIZE - baseSize;
-
-    // the actual size of the range that we're going to be using
-    size_t actSize = inverted ? invSize : baseSize;
 
     // make the new state and fragment
-    size_t q0 = NewState(nfaStates, actSize);
+    size_t q0 = NewState(nfaStates, size);
     Fragment ret {
         .startIndex = q0,
         .holes = {}
     };
-    ret.holes.reserve(actSize);
+    ret.holes.reserve(size);
 
     // fill in the fragment holes
     if (inverted)
     {
-        for (char c : inv)
+        for (char c : ALPHABET)
         {
-            ret.holes.emplace_back(q0, c);
+            if (!chars.contains(c))
+            {
+                ret.holes.emplace_back(q0, c);
+            }
         }
     }
     else
     {
-        for (char c : base)
+        for (char c : chars)
         {
             ret.holes.emplace_back(q0, c);
         }

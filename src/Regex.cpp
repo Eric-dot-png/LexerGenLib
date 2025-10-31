@@ -22,13 +22,16 @@ std::ostream& toStream(std::ostream& os, const Flat::Literal_t& re)
 }
 
 
-inline 
 std::ostream& toStream(std::ostream& os, const Flat::Charset_t& re)
 {
-    return (
-        os << '[' << (re.inverted ? "^'" : "'") 
-           << re.lo << "'-'" << re.hi << "']"
-    );
+    os << '[' << (re.inverted ? "^" : "");
+    std::string delim = "";
+    for (char c : re.chars)
+    {
+        os << delim << c;
+        delim = ", ";
+    }
+    os << ']';
 }
 
 
