@@ -32,6 +32,7 @@ std::ostream& toStream(std::ostream& os, const Flat::Charset_t& re)
         delim = ", ";
     }
     os << ']';
+    return os;
 }
 
 
